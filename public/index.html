@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <title>xDrip Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+        :root{
+            --bg:#000;--c1:#0d0d0d;--c2:#1a1a1a;--c3:#111;
+            --t1:#fff;--t2:#999;--t3:#555;--t4:#333;--t5:#222;
+            --acc:#fff;--acc2:#888;
+            --grn:#30D158;--ylw:#FFD60A;--org:#FF9F0A;--red:#FF453A;
+            --sep:#1a1a1a;--grd:#111;
+            --btn-bg:#0d0d0d;--btn-on:#fff;--btn-on-txt:#000;
+            --pill-bg:#0d0d0d;--pill-brd:#1a1a1a;
+        }
+        html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;transition:background .3s;display:flex;flex-direction:column}
+
+        /* NAV */
+        .nav-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg);flex-shrink:0}
+        .nav-label{font-size:18px;color:var(--t1);font-weight:800;letter-spacing:0}
+        .nav-themes{display:flex;gap:6px}.vth{width:16px;height:16px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:transform .2s}.vth.on{border-color:var(--t1)}.vth:active{transform:scale(0.85)}
+        
+        .tab-bar{display:flex;justify-content:space-around;align-items:center;padding:12px 0 20px;background:var(--bg);border-top:1px solid var(--sep);flex-shrink:0;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+        .tab{font-size:10px;font-weight:700;color:var(--t4);display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;transition:color .2s,transform .2s;flex:1}
+        .tab.on{color:var(--acc)}
+        .tab:active{transform:scale(0.92)}
+        .tab-i{width:6px;height:6px;border-radius:3px;background:var(--t4);transition:all .3s cubic-bezier(.4,0,.2,1);margin-bottom:2px}
+        .tab.on .tab-i{background:var(--acc);width:16px}
+
+        .slides{flex:1;display:flex;width:100vw;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none}
+        .slides::-webkit-scrollbar{display:none}
+        .s{min-width:100vw;width:100vw;height:100%;padding:10px 16px 30px;overflow-y:auto;scroll-snap-align:start;scrollbar-width:none}
+        .s::-webkit-scrollbar{display:none}
+
+        .c{background:var(--c1);border-radius:16px;margin-bottom:12px;overflow:hidden;border:1px solid var(--sep);transition:background .3s,border-color .3s,transform .2s,box-shadow .3s;animation:cardIn .5s ease-out backwards}
+        .c:nth-child(1){animation-delay:.0s}
+        .c:nth-child(2){animation-delay:.05s}
+        .c:nth-child(3){animation-delay:.1s}
+        .c:nth-child(4){animation-delay:.15s}
+        @keyframes cardIn{from{opacity:0;transform:translateY(20px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+        .cp{padding:14px}
+        .sec{font-size:10px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 8px 4px}
+        .seg{display:inline-flex;background:var(--pill-bg);border-radius:7px;padding:2px;border:1px solid var(--pill-brd);overflow-x:auto;scrollbar-width:none;max-width:100%}
+        .seg::-webkit-scrollbar{display:none}
+        .sb{padding:4px 8px;font-size:10px;font-weight:600;color:var(--t3);cursor:pointer;border-radius:5px;border:none;background:none;font-family:inherit;transition:all .15s;white-space:nowrap}
+        .sb.on{background:var(--c2);color:var(--t1)}
+
+        /* LIVE */
+        .hero{text-align:center;padding:20px 0 12px;position:relative}
+        .sgv{font-size:84px;font-weight:900;letter-spacing:-5px;line-height:.85;transition:color .4s}
+        .trend{font-size:34px;font-weight:700;margin-left:4px;transition:color .4s}
+        .sgv-g{color:var(--grn)}.sgv-y{color:var(--ylw)}.sgv-o{color:var(--org)}.sgv-r{color:var(--red)}
+        .meta{font-size:11px;color:var(--t3);margin-top:5px;font-weight:500}
+
+        /* Pulse ring around SGV */
+        .sgv-wrap{position:relative;display:inline-flex;align-items:baseline;gap:4px}
+        .pulse-ring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:120px;border-radius:50%;border:2px solid currentColor;opacity:0;animation:pulseRing 2.5s ease-out infinite;pointer-events:none}
+        .pulse-ring:nth-child(2){animation-delay:.8s}
+        @keyframes pulseRing{0%{width:80px;height:80px;opacity:.3}100%{width:160px;height:160px;opacity:0}}
+
+        /* Status dot */
+        .status-dot{display:inline-block;width:8px;height:8px;border-radius:4px;margin-right:6px;animation:breathe 2s ease-in-out infinite}
+        @keyframes breathe{0%,100%{opacity:.4;transform:scale(0.9)}50%{opacity:1;transform:scale(1.1)}}
+
+        .pred-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+        .pred{text-align:center;padding:12px 6px;transition:transform .2s}
+        .pred:active{transform:scale(0.96)}
+        .pred-label{font-size:8px;color:var(--t4);font-weight:700;letter-spacing:1px}
+        .pred-val{font-size:26px;font-weight:900;margin-top:3px;letter-spacing:-1px;transition:color .4s}
+        .pred-d{font-size:9px;color:var(--t4);font-weight:600;margin-top:1px}
+        .carb-rec{grid-column:span 3;text-align:center;padding:12px;background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.2)}
+        .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+        .qi{text-align:center;padding:10px 4px;transition:transform .2s}
+        .qi:active{transform:scale(0.95)}
+        .qi-l{font-size:8px;color:var(--t4);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+        .qi-v{font-size:15px;font-weight:800;margin-top:3px;color:var(--t2);transition:color .3s}
+        .cw{height:240px;position:relative;padding:6px 2px}
+        .cw canvas{width:100%!important;height:100%!important}
+
+        .seg-ctrl{display:flex;background:var(--c3);border-radius:10px;padding:2px;gap:2px;margin-bottom:8px;flex-wrap:wrap}
+        .seg-btn{flex:1 1 18%;min-width:60px;padding:7px 0;border:none;background:transparent;color:var(--t3);font-size:11px;font-weight:700;border-radius:8px;cursor:pointer;transition:all .25s cubic-bezier(.4,0,.2,1);font-family:inherit}
+        .seg-btn.on{background:var(--c1);color:var(--t1);box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+        .seg-btn:active{transform:scale(0.94)}
+        .rf{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:12px}
+        .rb{padding:5px 10px;background:var(--btn-bg);border:1px solid var(--sep);color:var(--t3);border-radius:14px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;transition:all .2s}
+        .rb.on{background:var(--btn-on);color:var(--btn-on-txt);border-color:var(--btn-on)}
+        .rb:active{transform:scale(0.93)}
+        .lr{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--c3);transition:background .2s}
+        .lr:last-child{border:none}
+        .lr:active{background:var(--c3)}
+        .lr-l{font-size:12px;color:var(--t3)}
+        .lr-v{font-size:13px;font-weight:700;color:var(--t2)}
+        .tbar{display:flex;height:24px;border-radius:5px;overflow:hidden;background:var(--c3);margin:6px 0}
+        .ts{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:8px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+        .tleg{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-top:4px}
+        .tli{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-radius:3px;background:var(--c3);font-size:9px}
+        .tli.tt{grid-column:span 2;border:1px solid rgba(48,209,88,0.15)}
+        .tll{display:flex;align-items:center;gap:4px;color:var(--t3)}
+        .tld{width:5px;height:5px;border-radius:1px}
+        .tlv{font-weight:800;font-size:10px;color:var(--t2)}
+        .rcw{height:180px;position:relative;padding:6px}
+        .rld{position:absolute;inset:0;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;border-radius:10px}
+        .rld.gone{display:none}
+        .rsp{width:18px;height:18px;border:2px solid var(--c2);border-top-color:var(--t3);border-radius:50%;animation:sp .7s linear infinite;margin-bottom:6px}
+        @keyframes sp{to{transform:rotate(360deg)}}
+        .pz-card{padding:10px 12px;margin-bottom:4px}
+        .pz-time{font-size:18px;font-weight:900;letter-spacing:-0.5px}
+        .pz-desc{font-size:10px;color:var(--t3);margin-top:2px}
+        .pz-bar{height:3px;border-radius:2px;margin-top:6px}
+
+        /* 3D FULLSCREEN */
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .vt-card{background:var(--c1);border:1px solid var(--sep);border-radius:10px;padding:16px 12px;text-align:center;color:var(--t2);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+        .vt-card:active{background:var(--c2);transform:scale(0.96)}
+        .modal{position:fixed;inset:0;background:var(--bg);z-index:999;display:none;flex-direction:column}
+        .modal.open{display:flex}
+        .modal-close{position:absolute;top:15px;right:15px;font-size:24px;color:var(--t1);cursor:pointer;z-index:1001;background:var(--c2);width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+        .modal-close:active{transform:scale(0.85)}
+        .ld3{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--t3);background:var(--bg);z-index:5}
+        .ld3.gone{display:none}
+        .ld3 span{animation:pp 1.5s ease-in-out infinite}
+        @keyframes pp{0%,100%{opacity:.3}50%{opacity:1}}
+
+        /* RAW */
+        .rl-r{display:flex;align-items:center;padding:12px;border-bottom:1px solid var(--c2);font-size:12px;transition:background .2s}
+        .rl-r:last-child{border-bottom:none}
+        .rl-r:active{background:var(--c3)}
+        .rl-t{color:var(--t3);font-weight:600;width:55px;flex-shrink:0;font-size:11px}
+        .rl-v{font-weight:800;font-size:15px;color:var(--t1);flex:1;display:flex;align-items:baseline;gap:3px}
+        .rl-d{font-size:10px;color:var(--t4);font-weight:600;display:flex;align-items:center;gap:4px;background:var(--c2);padding:2px 6px;border-radius:4px}
+        .raw-scroll{max-height:600px;overflow-y:auto;border-radius:14px}
+
+        /* FAB & MODAL ADD */
+        .fab{position:fixed;bottom:85px;right:20px;width:56px;height:56px;border-radius:28px;background:var(--acc);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:400;box-shadow:0 6px 20px rgba(0,0,0,0.35);cursor:pointer;z-index:150;transition:transform .25s cubic-bezier(.4,0,.2,1),box-shadow .3s}
+        .fab:active{transform:scale(0.88) rotate(-90deg)}
+        .fab:hover{box-shadow:0 8px 28px rgba(0,0,0,0.5)}
+        .amodal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:0;transition:opacity .3s}
+        .amodal.on{display:flex;opacity:1}
+        .am-c{background:var(--c1);width:320px;border-radius:24px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);transform:translateY(20px) scale(0.95);transition:transform .35s cubic-bezier(.4,0,.2,1);border:1px solid var(--sep)}
+        .amodal.on .am-c{transform:translateY(0) scale(1)}
+        .ainpt{width:100%;background:var(--c2);border:1px solid var(--sep);padding:14px;border-radius:12px;color:var(--t1);font-size:18px;font-weight:700;margin-top:6px;box-sizing:border-box;transition:border-color .2s,box-shadow .2s;font-family:inherit}
+        .ainpt:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(10,132,255,0.15)}
+        .abtn-r{display:flex;gap:12px;margin-top:24px}
+        .ambtn{flex:1;padding:14px;border:none;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;transition:transform .15s,opacity .2s;font-family:inherit}
+        .ambtn:active{transform:scale(0.95);opacity:0.8}
+
+        /* Chart style label */
+        .chart-style-label{position:absolute;top:8px;right:12px;font-size:9px;font-weight:700;color:var(--t4);text-transform:uppercase;letter-spacing:1px;opacity:0;transition:opacity .4s;pointer-events:none;z-index:5}
+        .chart-style-label.show{opacity:1}
+
+        @media(min-width:700px){.cw{height:340px}.rcw{height:260px}.sgv{font-size:96px}.trend{font-size:40px}.grid4{gap:10px}.qi{padding:14px 6px}.qi-v{font-size:18px}.pred-val{font-size:30px}.pred-row{gap:12px}.c{border-radius:20px}.am-c{width:400px}}
+    </style>
+</head>
+<body>
+    <div class="nav-bar" style="justify-content:flex-end">
+        <div class="nav-themes" id="thm"></div>
+    </div>
+
+    <div class="slides" id="slides">
+
+        <!-- ===== LIVE ===== -->
+        <section class="s" id="s1">
+        <div class="c hero">
+                <div class="sgv-wrap">
+                    <div class="pulse-ring" id="pr1"></div>
+                    <div class="pulse-ring" id="pr2"></div>
+                    <span class="sgv sgv-g" id="sgv">--</span>
+                    <span class="trend sgv-g" id="trend">-</span>
+                </div>
+                <div class="meta"><span class="status-dot" id="statusDot" style="background:var(--grn)"></span>Delta: <b id="delta" style="color:var(--t2)">--</b> mg/dL</div>
+                <div class="meta" id="htime">--</div>
+            </div>
+            <div class="sec">PREDYKCJA & ZALECENIA</div>
+            <div class="pred-row">
+                <div class="c pred"><div class="pred-label">15 MIN</div><div class="pred-val" id="p15">--</div><div class="pred-d" id="p15d"></div></div>
+                <div class="c pred"><div class="pred-label">30 MIN</div><div class="pred-val" id="p30">--</div><div class="pred-d" id="p30d"></div></div>
+                <div class="c pred"><div class="pred-label">1 GODZ</div><div class="pred-val" id="p60">--</div><div class="pred-d" id="p60d"></div></div>
+            </div>
+            <div class="c carb-rec" id="carb-rec-box" style="margin-bottom:12px;text-align:center;padding:14px;border:2px solid var(--sep);transition:all .3s">
+                <div class="pred-label" id="carb-lbl" style="font-size:11px;font-weight:800;color:var(--t3);margin-bottom:4px">WEGLOWODANY (CEL: 100 mg/dL)</div>
+                <div class="pred-val" id="carb-rec" style="font-size:22px;color:var(--t1);font-weight:800">--</div>
+            </div>
+            <div class="sec">DZISIAJ</div>
+            <div class="grid4" style="margin-bottom:8px">
+                <div class="c qi"><div class="qi-l">IOB</div><div class="qi-v" id="iob">0.0</div></div>
+                <div class="c qi"><div class="qi-l">Insulina</div><div class="qi-v" id="ins">0.0</div></div>
+                <div class="c qi"><div class="qi-l">TIR</div><div class="qi-v" id="tir">--</div></div>
+                <div class="c qi"><div class="qi-l">Srednia</div><div class="qi-v" id="avg">--</div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div class="sec" style="margin:0">WYKRES GŁÓWNY</div>
+                    <div style="font-size:9px;font-weight:600;color:var(--t4)" id="rlbl">--</div>
+                </div>
+                <div class="seg-ctrl" id="tc-time">
+                    <button class="seg-btn" onclick="setLTime(3,this)">3H</button>
+                    <button class="seg-btn" onclick="setLTime(6,this)">6H</button>
+                    <button class="seg-btn" onclick="setLTime(12,this)">12H</button>
+                    <button class="seg-btn on" onclick="setLTime(24,this)">24H</button>
+                </div>
+            </div>
+            <div class="c" style="position:relative"><div class="chart-style-label" id="csl"></div><div class="cw"><canvas id="lc"></canvas></div></div>
+            <div class="sec">CZAS W ZAKRESIE (LIVE)</div>
+            <div class="c" style="display:flex;align-items:center;padding:16px;gap:16px">
+                <canvas id="tirDonut" width="100" height="100" style="width:100px;height:100px;flex-shrink:0"></canvas>
+                <div style="flex:1">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:10px;color:var(--t3);font-weight:600">🟢 W zakresie (70-180)</div><div style="font-size:14px;font-weight:900;color:var(--grn)" id="tirPct2">--%</div></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:10px;color:var(--t3);font-weight:600">🟡 Powyżej (>180)</div><div style="font-size:12px;font-weight:800;color:var(--ylw)" id="tirHi2">--%</div></div>
+                    <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:10px;color:var(--t3);font-weight:600">🔴 Poniżej (<70)</div><div style="font-size:12px;font-weight:800;color:var(--red)" id="tirLo2">--%</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== AGP ===== -->
+        <section class="s" id="s2">
+            <div class="sec" style="margin-top:0">RAPORT AGP</div>
+            <div class="rf">
+                <button class="rb" onclick="rf(24,'24h',this)">24H</button>
+                <button class="rb on" onclick="rf(48,'48h',this)">48H</button>
+                <button class="rb" onclick="rf(168,'7d',this)">7D</button>
+                <button class="rb" onclick="rf(336,'14d',this)">14D</button>
+                <button class="rb" onclick="rf(720,'30d',this)">30D</button>
+                <button class="rb" onclick="rf(2160,'90d',this)">90D</button>
+            </div>
+            <div style="position:relative">
+                <div class="rld" id="rld"><div class="rsp"></div><div style="font-size:11px;font-weight:600;color:var(--t3)" id="rls">Pobieram...</div></div>
+                <div id="rc" style="opacity:0;transition:opacity .3s">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                        <div style="font-size:10px;color:var(--t4);font-weight:600" id="rrng">48h</div>
+                        <div style="font-size:10px;font-weight:600;color:var(--t3)" id="rdr">--</div>
+                    </div>
+                    <div class="c">
+                        <div class="lr"><div class="lr-l">Sensor</div><div class="lr-v" id="rs">--</div></div>
+                        <div class="lr"><div class="lr-l">Srednia</div><div class="lr-v" id="ra">--</div></div>
+                        <div class="lr"><div class="lr-l">GMI</div><div class="lr-v" id="rg">--</div></div>
+                        <div class="lr"><div class="lr-l">CV</div><div class="lr-v" id="rcv">--</div></div>
+                        <div class="lr"><div class="lr-l">SD</div><div class="lr-v" id="rsd">--</div></div>
+                        <div class="lr"><div class="lr-l">Min / Max SGV</div><div class="lr-v" id="rmm">--</div></div>
+                        <div class="lr"><div class="lr-l">Śr. Dzienna Insulina</div><div class="lr-v" id="ri">--</div></div>
+                        <div class="lr"><div class="lr-l">Śr. Dzienne WW</div><div class="lr-v" id="rca">--</div></div>
+                        <div class="lr"><div class="lr-l">Epizody Hipo</div><div class="lr-v" id="rhp" style="color:var(--red)">--</div></div>
+                        <div class="lr"><div class="lr-l">Epizody Hiper</div><div class="lr-v" id="rhh" style="color:var(--org)">--</div></div>
+                    </div>
+                    <div class="sec">CZAS W ZAKRESIE</div>
+                    <div class="c cp">
+                        <div class="tbar" id="rtb"></div>
+                        <div class="tleg">
+                            <div class="tli"><div class="tll"><div class="tld" style="background:#E65100"></div>B.Wys</div><div class="tlv"><span id="vh">0</span>%</div></div>
+                            <div class="tli"><div class="tll"><div class="tld" style="background:var(--org)"></div>Wys</div><div class="tlv"><span id="hi">0</span>%</div></div>
+                            <div class="tli tt"><div class="tll"><div class="tld" style="background:var(--grn)"></div>70-180</div><div class="tlv" style="color:var(--grn)"><span id="tg">0</span>%</div></div>
+                            <div class="tli"><div class="tll"><div class="tld" style="background:var(--red)"></div>Niski</div><div class="tlv"><span id="lo">0</span>%</div></div>
+                            <div class="tli"><div class="tll"><div class="tld" style="background:#B71C1C"></div>B.Nis</div><div class="tlv"><span id="vl">0</span>%</div></div>
+                        </div>
+                    </div>
+                    <div class="sec">PROFIL GLIKEMII</div>
+                    <div class="c"><div class="rcw"><canvas id="rch"></canvas></div></div>
+                    <div class="sec">PROFIL ZABIEGÓW (ŚREDNIO)</div>
+                    <div class="c"><div class="rcw"><canvas id="treatChart"></canvas></div></div>
+                    <div class="sec">DNI TYGODNIA</div>
+                    <div class="c"><div class="rcw"><canvas id="dowChart"></canvas></div></div>
+                    <div class="sec">ROZKŁAD GLIKEMII</div>
+                    <div class="c"><div class="rcw"><canvas id="distChart"></canvas></div></div>
+                    <div class="sec">STREFY PROBLEMOWE</div>
+                    <div id="pzones"></div>
+                    <div class="sec">MAPA CIEPŁA (GODZINY × DNI)</div>
+                    <div class="c cp"><canvas id="heatmapCanvas" style="width:100%;height:200px;border-radius:8px"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 3D ===== -->
+        <section class="s" id="s4">
+            <div class="sec" style="margin-top:0">WIZUALIZACJA 3D</div>
+            <div class="rf">
+                <button class="rb on" onclick="load3D(48,'48h',this)">48H</button>
+                <button class="rb" onclick="load3D(168,'7d',this)">7D</button>
+                <button class="rb" onclick="load3D(336,'14d',this)">14D</button>
+                <button class="rb" onclick="load3D(720,'30d',this)">30D</button>
+            </div>
+            <div class="sec">MAPA CIEPŁA GLIKEMII</div>
+            <div class="c cp" style="overflow-x:auto">
+                <div id="heatGrid" style="min-width:100%"></div>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:8px;font-weight:700;color:var(--t4)">
+                    <span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
+                </div>
+                <div style="display:flex;gap:4px;align-items:center;margin-top:8px;font-size:8px;color:var(--t4);font-weight:600">
+                    <span>Niski</span>
+                    <div style="flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#FF453A,#FF9F0A,#FFD60A,#30D158,#30D158,#FFD60A,#FF9F0A)"></div>
+                    <span>Wysoki</span>
+                </div>
+            </div>
+            <div class="sec">GÓRY GLIKEMII (NAŁOŻONE DNI)</div>
+            <div class="c"><div class="rcw" style="height:220px"><canvas id="mountainChart"></canvas></div></div>
+            <div class="sec">RADAR GODZINOWY</div>
+            <div class="c"><div class="rcw" style="height:260px"><canvas id="radarChart"></canvas></div></div>
+            <div class="sec">POLAR AREA — ROZK&#321;AD GODZINOWY</div>
+            <div class="c"><div class="rcw" style="height:260px"><canvas id="polarChart"></canvas></div></div>
+            <div class="sec">BĄBELKI — ODCHY&#321;KA OD CELU</div>
+            <div class="c"><div class="rcw" style="height:220px"><canvas id="bubbleChart"></canvas></div></div>
+            <div class="sec">DONUT — PORA DNIA</div>
+            <div class="c" style="display:flex;align-items:center;padding:16px;gap:16px">
+                <div class="rcw" style="height:160px;width:160px;flex-shrink:0;padding:0"><canvas id="dayPartDonut"></canvas></div>
+                <div id="dayPartLegend" style="flex:1;font-size:10px;color:var(--t3)"></div>
+            </div>
+            <div class="sec">SCATTER — INSULINA vs GLIKEMIA</div>
+            <div class="c"><div class="rcw" style="height:220px"><canvas id="insScatter"></canvas></div></div>
+            <div class="sec">BLOKI GODZINOWE</div>
+            <div class="c cp"><div id="hourBlocks" style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px"></div></div>
+            <div class="sec">ŚREDNIE DZIENNE</div>
+            <div class="c"><div class="rcw" style="height:180px"><canvas id="dailyAvgChart"></canvas></div></div>
+            <div class="sec">DELTA — ZMIENNO&#346;&#262; MI&#280;DZYPOMIAROWA</div>
+            <div class="c"><div class="rcw" style="height:180px"><canvas id="deltaChart"></canvas></div></div>
+            <div class="sec">STACKED AREA — STREFY GODZINOWE</div>
+            <div class="c"><div class="rcw" style="height:220px"><canvas id="stackedZone"></canvas></div></div>
+            <div class="sec">HISTOGRAMM — ROZK&#321;AD ODCZYTÓW</div>
+            <div class="c"><div class="rcw" style="height:180px"><canvas id="histChart"></canvas></div></div>
+            <div class="sec">MINIMUM / MAKSIMUM DZIENNE</div>
+            <div class="c"><div class="rcw" style="height:180px"><canvas id="minMaxChart"></canvas></div></div>
+            <div class="sec">ZEGAREK 24H</div>
+            <div class="c cp"><canvas id="clockCanvas" style="width:100%;height:280px;border-radius:12px"></canvas></div>
+            <div class="sec">WATERFALL — KUMULACJA DELT</div>
+            <div class="c"><div class="rcw" style="height:180px"><canvas id="waterfallChart"></canvas></div></div>
+            <div class="sec">PORÓWNANIE: DZISIAJ vs WCZORAJ</div>
+            <div class="c"><div class="rcw" style="height:220px"><canvas id="compareChart"></canvas></div></div>
+            <div class="sec">STABILNOŚĆ PO PORZE DNIA</div>
+            <div class="c cp"><div id="stabilityGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div></div>
+            <div class="sec">NOCNE vs DZIENNE</div>
+            <div class="c"><div class="rcw" style="height:180px"><canvas id="nightDayChart"></canvas></div></div>
+        </section>
+
+        <!-- ===== DANE ===== -->
+        <section class="s" id="s3">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <div class="sec" style="margin:0">SUROWE DANE</div>
+                <div class="seg">
+                    <button class="sb on" onclick="rawM('sgv',this)">SGV</button>
+                    <button class="sb" onclick="rawM('ins',this)">Zabiegi</button>
+                </div>
+            </div>
+            <div id="raw-count" style="font-size:9px;color:var(--t4);margin-bottom:6px">--</div>
+            <div class="c raw-scroll" id="raw-wrap"><div id="raw-log"></div></div>
+        </section>
+    </div>
+
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+        <div class="tab on" onclick="document.getElementById('slides').scrollTo({left:0,behavior:'smooth'})">
+            <div class="tab-i"></div>
+            <div>LIVE</div>
+        </div>
+        <div class="tab" onclick="document.getElementById('slides').scrollTo({left:window.innerWidth,behavior:'smooth'})">
+            <div class="tab-i"></div>
+            <div>AGP</div>
+        </div>
+        <div class="tab" onclick="document.getElementById('slides').scrollTo({left:window.innerWidth*2,behavior:'smooth'})">
+            <div class="tab-i"></div>
+            <div>DANE</div>
+        </div>
+        <div class="tab" onclick="document.getElementById('slides').scrollTo({left:window.innerWidth*3,behavior:'smooth'})">
+            <div class="tab-i"></div>
+            <div>3D</div>
+        </div>
+    </div>
+
+    <!-- FAB & MODAL -->
+    <div class="fab" onclick="openAdd()">+</div>
+    <div class="amodal" id="addModal">
+        <div class="am-c">
+            <div class="sec" style="margin:0 0 16px 0;font-size:12px">DODAJ ZABIEG</div>
+            <div style="margin-bottom:16px">
+                <label style="font-size:10px;font-weight:700;color:var(--t4)">INSULINA (J)</label>
+                <input type="number" id="addIns" step="0.1" class="ainpt" placeholder="0.0">
+            </div>
+            <div>
+                <label style="font-size:10px;font-weight:700;color:var(--t4)">WĘGLOWODANY (g)</label>
+                <input type="number" id="addCarbs" class="ainpt" placeholder="0">
+            </div>
+            <div class="abtn-r">
+                <button class="ambtn" onclick="closeAdd()" style="background:var(--c2);color:var(--t2)">Anuluj</button>
+                <button class="ambtn" onclick="saveAdd()" style="background:var(--acc);color:var(--bg)">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+Chart.register(ChartDataLabels);
+
+const THEMES={
+    iosLight:{name:'iOS Jasny',dot:'#f2f2f7',bg:'#f2f2f7',c1:'#ffffff',c2:'#f2f2f7',c3:'#ffffff',t1:'#000000',t2:'#1c1c1e',t3:'#8e8e93',t4:'#aeaeb2',t5:'#e5e5ea',acc:'#007aff',acc2:'#5856d6',grn:'#34c759',ylw:'#ffcc00',org:'#ff9500',red:'#ff3b30',sep:'#e5e5ea',grd:'#e5e5ea',btnBg:'#f2f2f7',btnOn:'#007aff',btnOnTxt:'#ffffff'},
+    ios:{name:'iOS Ciemny',dot:'#1c1c1e',bg:'#000',c1:'#1C1C1E',c2:'#2C2C2E',c3:'#1C1C1E',t1:'#fff',t2:'#EBEBF5',t3:'#8E8E93',t4:'#48484A',t5:'#3A3A3C',acc:'#0A84FF',acc2:'#5E5CE6',grn:'#30D158',ylw:'#FFD60A',org:'#FF9F0A',red:'#FF453A',sep:'#38383A',grd:'#2C2C2E',btnBg:'#1C1C1E',btnOn:'#0A84FF',btnOnTxt:'#fff'}
+};
+let curTheme='iosLight';
+
+function applyTheme(k){
+    curTheme=k;const T=THEMES[k],r=document.documentElement.style;
+    r.setProperty('--bg',T.bg);r.setProperty('--c1',T.c1);r.setProperty('--c2',T.c2);r.setProperty('--c3',T.c3);
+    r.setProperty('--t1',T.t1);r.setProperty('--t2',T.t2);r.setProperty('--t3',T.t3);r.setProperty('--t4',T.t4);r.setProperty('--t5',T.t5);
+    r.setProperty('--acc',T.acc);r.setProperty('--acc2',T.acc2);
+    r.setProperty('--grn',T.grn);r.setProperty('--ylw',T.ylw);r.setProperty('--org',T.org);r.setProperty('--red',T.red);
+    r.setProperty('--sep',T.sep);r.setProperty('--grd',T.grd);
+    r.setProperty('--btn-bg',T.btnBg);r.setProperty('--btn-on',T.btnOn);r.setProperty('--btn-on-txt',T.btnOnTxt);
+    r.setProperty('--pill-bg',T.btnBg);r.setProperty('--pill-brd',T.sep);
+    document.querySelector('meta[name="theme-color"]').content=T.bg;
+    // Rebuild charts with new colors
+    if(lc){lc.destroy();lc=null;li();}
+    if(initd[1])rf(agpH,null,null);
+}
+
+// Build theme dots
+(function(){
+    const th=document.getElementById('thm');
+    Object.keys(THEMES).forEach(k=>{const d=document.createElement('div');d.className='vth'+(k===curTheme?' on':'');d.style.background=THEMES[k].dot;d.title=THEMES[k].name;d.onclick=()=>{curTheme=k;document.querySelectorAll('.vth').forEach(x=>x.classList.remove('on'));d.classList.add('on');applyTheme(k)};th.appendChild(d)});
+})();
+
+// === NAV ===
+const SL=document.getElementById('slides'),tabs=document.querySelectorAll('.tab');
+const NM=['LIVE','AGP','DANE','3D'];
+let cslNav=0,agpH=48,initd=[true,false,false,false];
+
+// Re-sort elements back to original order just in case they were sorted by JS
+const sortedSections = Array.from(SL.children).filter(e=>e.classList.contains('s')).sort((a,b)=>a.id.localeCompare(b.id));
+sortedSections.forEach(el => SL.appendChild(el));
+setTimeout(()=>SL.scrollTo({left:0,behavior:'auto'}),50);
+
+SL.addEventListener('scroll',()=>{const i=Math.round(SL.scrollLeft/SL.clientWidth);if(i!==cslNav){cslNav=i;tabs.forEach((t,j)=>t.classList.toggle('on',j===i));if(!initd[i]){initd[i]=true;if(i===1)rf(48,'48h',document.querySelector('.rb.on'));if(i===2)loadRaw();if(i===3)load3D(48,'48h',document.querySelector('#s4 .rb.on'));}}});
+
+// === HELPERS ===
+function T(){return THEMES[curTheme]}
+function sc(v){if(v<70)return'sgv-r';if(v<=180)return'sgv-g';if(v<=250)return'sgv-y';return'sgv-o'}
+function dc(v){const t=T();if(v<70)return t.red;if(v<=180)return t.grn;if(v<=250)return t.ylw;return t.org}
+function ta(d){if(d>5)return'\u2191\u2191';if(d>3)return'\u2191';if(d>1)return'\u2197';if(d>-1)return'\u2192';if(d>-3)return'\u2198';if(d>-5)return'\u2193';return'\u2193\u2193'}
+function hexRGB(h){if(!h||h[0]!=='#')return'128,128,128';const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return r+','+g+','+b}
+
+// === CHART HELPERS ===
+function chartGrid(){return T().grd}
+function chartTick(){return T().t4}
+function chartLine(){return T().acc2||T().t3}
+
+let ctype='area';
+let lHours = 24;
+
+function setLTime(h, btn) {
+    lHours = h;
+    document.querySelectorAll('#tc-time .seg-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    li(); // re-render
+}
+function setLStyle(s, btn) {
+    ctype = s;
+    document.querySelectorAll('#tc-style .seg-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    li(); // re-render
+}
+
+// === LIVE ===
+let lc=null,gtr=[],lastClickTime=0,globEntries=[];
+function lm(ch){
+    const mn=ch.scales.x.min,mx=ch.scales.x.max;
+    const f=t=>new Date(t).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('rlbl').innerText=f(mn)+' - '+f(mx);
+    let s=0;gtr.forEach(t=>{if(t.timestamp>=mn&&t.timestamp<=mx)s+=t.insulin});
+    document.getElementById('ins').innerText=s.toFixed(1)+' J';
+    const vi=globEntries.filter(e=>e.date>=mn&&e.date<=mx);
+    const ti=vi.length?Math.round(vi.filter(e=>e.sgv>=70&&e.sgv<=180).length/vi.length*100):0;
+    const av=vi.length?Math.round(vi.reduce((a,b)=>a+b.sgv,0)/vi.length):0;
+    document.getElementById('tir').innerText=ti+'%';
+    document.getElementById('avg').innerText=av;
+    // Update TIR donut
+    const hiPct=vi.length?vi.filter(e=>e.sgv>180).length/vi.length:0;
+    const loPct=vi.length?vi.filter(e=>e.sgv<70).length/vi.length:0;
+    const inPct=vi.length?(ti/100):0;
+    drawTirDonut(inPct,hiPct,loPct);
+    document.getElementById('tirPct2').innerText=Math.round(inPct*100)+'%';
+    document.getElementById('tirHi2').innerText=Math.round(hiPct*100)+'%';
+    document.getElementById('tirLo2').innerText=Math.round(loPct*100)+'%';
+}
+
+async function li(){
+    try{
+        const t=T();
+        const res=await fetch('/dane/api/data?hours=72&t='+Date.now()).then(r=>r.json());
+        if(!res.entries||!res.entries.length)return;
+        const entries=res.entries;
+        globEntries=res.entries;
+        gtr=res.treatments;
+        const latest=res.latest||res.entries[res.entries.length-1];
+        const se=document.getElementById('sgv'),te=document.getElementById('trend');
+        se.innerText=latest.sgv;se.className='sgv '+sc(latest.sgv);
+        let d=0;if(entries.length>1)d=latest.sgv-entries[entries.length-2].sgv;
+        te.innerText=ta(d);te.className='trend '+sc(latest.sgv);
+        document.getElementById('delta').innerText=(d>0?'+':'')+d;
+        const ld=new Date(latest.date),ma=Math.floor((Date.now()-latest.date)/60000);
+        document.getElementById('htime').innerText=ld.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'})+' / '+ma+' min temu';
+
+        // Pulse ring & status dot color
+        const sgvColor = latest.sgv>=70&&latest.sgv<=180 ? t.grn : latest.sgv>180&&latest.sgv<=250 ? t.ylw : latest.sgv>250 ? t.red : t.red;
+        document.getElementById('pr1').style.borderColor=sgvColor;
+        document.getElementById('pr2').style.borderColor=sgvColor;
+        const dot=document.getElementById('statusDot');
+        dot.style.background = ma <= 5 ? t.grn : ma <= 15 ? t.ylw : t.red;
+
+  /* PREDYKCJA — poprawna kolejność pomiarów */
+let p15 = null, p30 = null, p60 = null;
+
+const sortedEntries = [...entries].sort((a, b) => a.date - b.date);
+const recent = sortedEntries.slice(-12);
+
+if (recent.length >= 3) {
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+
+    const minutesPassed = Math.max(
+        1,
+        (last.date - first.date) / 60000
+    );
+let p15 = null, p30 = null, p60 = null;
+
+if (res.entries.length >= 6) {
+    const r = res.entries.slice(-6);
+    const pd = (r[r.length - 1].sgv - r[0].sgv) / 6;
+
+    p15 = Math.round(latest.sgv + pd * 3);
+    p30 = Math.round(latest.sgv + pd * 6);
+    p60 = Math.round(latest.sgv + pd * 12);
+}
+
+[
+    ['p15', p15],
+    ['p30', p30],
+    ['p60', p60]
+].forEach(([id, v]) => {
+    const el = document.getElementById(id);
+    el.innerText = v;
+    el.className = 'pred-val ' + sc(v);
+});
+
+[
+    ['p15d', p15],
+    ['p30d', p30],
+    ['p60d', p60]
+].forEach(([id, v]) => {
+    const diff = v - latest.sgv;
+    document.getElementById(id).innerText =
+        diff > 0 ? '+' + diff : diff;
+});
+
+          // CARB CALC
+            let carbs = 0;
+            if (p60 < 100) {
+                carbs = Math.round((100 - p60) / 4);
+                if (carbs < 0) carbs = 0;
+            }
+
+            if(carbs > 0){
+                document.getElementById('carb-rec').innerHTML = '<b style="color:var(--btn-on-txt);font-size:28px">'+carbs+'g</b>';
+                document.getElementById('carb-rec-box').style.borderColor = t.org;
+                document.getElementById('carb-rec-box').style.background = t.org;
+                document.getElementById('carb-lbl').style.color = 'var(--btn-on-txt)';
+                document.getElementById('carb-lbl').innerText = 'TRZEBA SPOZYC WEGLOWODANY';
+            }else{
+                document.getElementById('carb-rec').innerHTML = '<b style="color:var(--grn);font-size:20px">STABILNIE</b>';
+                document.getElementById('carb-rec-box').style.borderColor = 'rgba('+hexRGB(t.grn)+',0.2)';
+                document.getElementById('carb-rec-box').style.background = 'rgba('+hexRGB(t.grn)+',0.05)';
+                document.getElementById('carb-lbl').style.color = 'var(--t3)';
+                document.getElementById('carb-lbl').innerText = 'WEGLOWODANY (CEL: 100 mg/dL)';
+            }
+        }
+        let iob=0;const nw=Date.now();
+        res.treatments.forEach(tr=>{const a=(nw-tr.timestamp)/60000;if(a>=0&&a<240)iob+=tr.insulin*(1-a/240)});
+        document.getElementById('iob').innerText=iob.toFixed(1)+' J';
+
+        const ip=gtr.filter(tr=>tr.insulin>0).map(tr=>{let c={sgv:100};if(entries.length)c=entries.reduce((p,cu)=>Math.abs(cu.date-tr.timestamp)<Math.abs(p.date-tr.timestamp)?cu:p);return{x:tr.timestamp,y:c.sgv,val:tr.insulin,id:tr.id}});
+        const cp=gtr.filter(tr=>tr.carbs>0).map(tr=>{let c={sgv:100};if(entries.length)c=entries.reduce((p,cu)=>Math.abs(cu.date-tr.timestamp)<Math.abs(p.date-tr.timestamp)?cu:p);return{x:tr.timestamp,y:c.sgv,val:tr.carbs,id:tr.id}});
+        const sd=entries.map(e=>({x:e.date,y:e.sgv}));
+        let mds = {label:'SGV', data:sd, datalabels:{display:false}};
+        if(ctype==='dots'){mds.showLine=false; mds.pointRadius=4; mds.pointBackgroundColor=ctx=>{const v=ctx.raw?.y;return dc(v||100)}; mds.pointBorderColor='transparent';}
+        else if(ctype==='scatter'){mds.showLine=false; mds.pointRadius=2; mds.pointBackgroundColor=t.acc2;}
+        else if(ctype==='stepped'){mds.stepped=true; mds.borderWidth=2; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=false;}
+        else if(ctype==='line'){mds.tension=0.4; mds.borderWidth=2; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=false;}
+        else if(ctype==='straight'){mds.tension=0; mds.borderWidth=2; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=false;}
+        else if(ctype==='nodes'){mds.tension=0.4; mds.borderWidth=1.5; mds.borderColor=t.acc2; mds.pointRadius=3; mds.pointBackgroundColor=t.c1; mds.pointBorderColor=t.acc2; mds.fill=false;}
+        else if(ctype==='bar'){mds.type='bar'; mds.backgroundColor=t.acc2; mds.borderRadius=2; mds.barThickness=3;}
+        else if(ctype==='dashed'){mds.tension=0.4; mds.borderWidth=2; mds.borderColor=t.acc2; mds.pointRadius=0; mds.borderDash=[5,5]; mds.fill=false;}
+        else if(ctype==='stepped-area'){mds.stepped=true; mds.borderWidth=1.5; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=true; mds.backgroundColor='rgba('+hexRGB(t.acc)+',0.15)';}
+        else if(ctype==='straight-area'){mds.tension=0; mds.borderWidth=1.5; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=true; mds.backgroundColor='rgba('+hexRGB(t.acc)+',0.15)';}
+        else if(ctype==='thin-line'){mds.tension=0.4; mds.borderWidth=1; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=false;}
+        else if(ctype==='thick-line'){mds.tension=0.4; mds.borderWidth=4; mds.borderColor=t.acc2; mds.pointRadius=0; mds.fill=false;}
+        else if(ctype==='nodes-straight'){mds.tension=0; mds.borderWidth=1.5; mds.borderColor=t.acc2; mds.pointRadius=3; mds.pointBackgroundColor=t.c1; mds.pointBorderColor=t.acc2; mds.fill=false;}
+        else if(ctype==='bar-thin'){mds.type='bar'; mds.backgroundColor=t.acc2; mds.borderRadius=0; mds.barThickness=1;}
+        else if(ctype==='area'){
+            mds.tension=0.4; mds.borderWidth=1.5; mds.pointRadius=0; mds.borderColor=t.acc2; mds.fill=true;
+            mds.backgroundColor=ctx=>{const{ctx:c,chartArea}=ctx.chart;if(!chartArea)return null;const g=c.createLinearGradient(0,chartArea.top,0,chartArea.bottom);g.addColorStop(0,'rgba('+hexRGB(t.acc)+',0.1)');g.addColorStop(1,'transparent');return g};
+        }
+        
+        const predDs=[];
+        if(p15)predDs.push({label:'pred',data:[{x:latest.date,y:latest.sgv},{x:latest.date+9e5,y:p15},{x:latest.date+18e5,y:p30},{x:latest.date+36e5,y:p60}],borderColor:'rgba('+hexRGB(t.t2)+',0.2)',borderDash:[3,3],borderWidth:1,pointRadius:[0,2,2,2],pointBackgroundColor:'rgba('+hexRGB(t.t2)+',0.4)',datalabels:{display:true,align:'top',offset:3,color:t.t4,font:{family:'Inter',size:9,weight:'600'},formatter:v=>v.y}});
+        const ds=[mds,...predDs,
+            {label:'Ins',data:ip,showLine:false,pointRadius:7,pointBackgroundColor:t.acc,borderWidth:1,borderColor:t.t4,datalabels:{display:true,align:'bottom',offset:8,backgroundColor:'rgba('+hexRGB(t.acc)+',0.06)',borderRadius:3,padding:3,color:t.t3,font:{family:'Inter',size:9,weight:'bold'},formatter:v=>v.val+'J'}},
+            {label:'Carb',data:cp,showLine:false,pointRadius:7,pointBackgroundColor:t.org,borderWidth:1,borderColor:t.t4,datalabels:{display:true,align:'top',offset:8,backgroundColor:'rgba('+hexRGB(t.org)+',0.06)',borderRadius:3,padding:3,color:t.org,font:{family:'Inter',size:9,weight:'bold'},formatter:v=>v.val+'g'}}
+        ];
+
+        const endT = latest.date + 1800000; // 30 min padding
+        const startT = endT - (lHours * 60 * 60 * 1000);
+
+        if(!lc){Chart.defaults.font.family="system-ui,-apple-system,sans-serif";
+            lc=new Chart(document.getElementById('lc').getContext('2d'),{type:'line',data:{datasets:ds},options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:500},layout:{padding:{top:14,right:14}},
+                onClick:async(e,el)=>{
+                    if(!el.length || ds[el[0].datasetIndex].label === 'SGV'){
+                        const now = Date.now();
+                        if (now - lastClickTime < 300) {
+                            const styles = ['area', 'line', 'dots', 'scatter', 'stepped', 'straight', 'nodes', 'bar', 'dashed', 'stepped-area', 'straight-area', 'thin-line', 'thick-line', 'nodes-straight', 'bar-thin'];
+                            const styleNames = {'area':'Pasma','line':'Linia','dots':'Krople','scatter':'Rozproszony','stepped':'Schodki','straight':'Ostra','nodes':'Węzły','bar':'Słupki','dashed':'Przerywana','stepped-area':'Schodki+Wypełnienie','straight-area':'Ostra+Wypełnienie','thin-line':'Cienka Linia','thick-line':'Gruba Linia','nodes-straight':'Ostre Węzły','bar-thin':'Cienkie Słupki'};
+                            ctype = styles[(styles.indexOf(ctype) + 1) % styles.length];
+                            const csl=document.getElementById('csl');
+                            csl.textContent=styleNames[ctype]||ctype;
+                            csl.classList.add('show');
+                            clearTimeout(window._cslTimer);
+                            window._cslTimer=setTimeout(()=>csl.classList.remove('show'),1500);
+                            li();
+                        }
+                        lastClickTime = now;
+                        return;
+                    }
+                    const em=el[0];const dl=ds[em.datasetIndex].label;
+                    if(dl==='Ins'||dl==='Carb'){
+                        const pt=ds[em.datasetIndex].data[em.index];
+                        const ts=new Date(pt.x).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+                        const v=dl==='Ins'?pt.val+'J':pt.val+'g';
+                        if(confirm('Usunąć '+v+' z '+ts+'?')){try{const r=await fetch('/dane/api/treatments/'+encodeURIComponent(pt.id),{method:'DELETE'});if(r.ok)li()}catch(e){}}
+                    }
+                },
+                plugins:{legend:{display:false},datalabels:{clip:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1,bodyFont:{size:11,weight:'bold'},padding:8,cornerRadius:6,callbacks:{label:ctx=>{if(ctx.dataset.label==='Ins')return ctx.raw.val+'J';if(ctx.dataset.label==='Carb')return ctx.raw.val+'g';return ctx.raw.y}}},zoom:{pan:{enabled:true,mode:'x',onPan:({chart})=>lm(chart)},zoom:{pinch:{enabled:true},wheel:{enabled:true},mode:'x',onZoom:({chart})=>lm(chart)}}},
+                scales:{x:{type:'time',min:startT,max:endT,time:{displayFormats:{hour:'HH:mm'}},grid:{display:false},ticks:{color:chartTick(),font:{size:9},maxTicksLimit:8}},
+                y:{grid:{color:chartGrid()},ticks:{color:chartTick(),font:{size:9}},min:40,max:300}}
+            }});setTimeout(()=>lm(lc),200);
+        }else{
+            lc.options.scales.x.min = startT;
+            lc.options.scales.x.max = endT;
+            lc.data.datasets=ds;
+            lc.update('none');
+            lm(lc);
+        }
+    }catch(e){console.error(e)}
+}
+
+// TIR Donut
+function drawTirDonut(inR, hiR, loR){
+    const c=document.getElementById('tirDonut');
+    if(!c)return;
+    const ctx=c.getContext('2d'),t=T();
+    const dpr=window.devicePixelRatio||1;
+    c.width=100*dpr;c.height=100*dpr;
+    ctx.scale(dpr,dpr);
+    const cx=50,cy=50,r=38,lw=10;
+    ctx.clearRect(0,0,100,100);
+    ctx.lineWidth=lw;ctx.lineCap='round';
+    // Background ring
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=t.c3||'#222';ctx.stroke();
+    // Green (in range)
+    const startA=-Math.PI/2;
+    const grA=startA+Math.PI*2*inR;
+    if(inR>0){ctx.beginPath();ctx.arc(cx,cy,r,startA,grA);ctx.strokeStyle=t.grn;ctx.stroke();}
+    // Yellow (high)
+    const hiA=grA+Math.PI*2*hiR;
+    if(hiR>0){ctx.beginPath();ctx.arc(cx,cy,r,grA,hiA);ctx.strokeStyle=t.ylw;ctx.stroke();}
+    // Red (low)
+    if(loR>0){ctx.beginPath();ctx.arc(cx,cy,r,hiA,hiA+Math.PI*2*loR);ctx.strokeStyle=t.red;ctx.stroke();}
+    // Center text
+    ctx.fillStyle=t.t1;ctx.font='900 22px Inter,system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(Math.round(inR*100)+'%',cx,cy-4);
+    ctx.fillStyle=t.t4;ctx.font='700 8px Inter,system-ui';
+    ctx.fillText('TIR',cx,cy+12);
+}
+li();setInterval(li,60000);
+
+// === AGP ===
+let rch=null,hch=null,dch=null,dwch=null;
+async function rf(h,lb,btn){
+    agpH=h;
+    if(btn){document.querySelectorAll('.rb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+    const co=document.getElementById('rc'),ld=document.getElementById('rld');
+    co.style.opacity='0';ld.classList.remove('gone');
+    document.getElementById('rrng').innerText=lb||h+'h';document.getElementById('rls').innerText=(lb||h+'h')+'...';
+    try{
+        const t=T();
+        const res=await fetch('/dane/api/data?hours='+h+'&t='+Date.now()).then(r=>r.json());
+        const en=res.entries||[],tr=res.treatments||[];
+        if(!en.length){document.getElementById('rls').innerText="Brak danych.";return;}
+        let taN=0,loN=0,vlN=0,hiN=0,vhN=0,sum=0;
+        en.forEach(e=>{sum+=e.sgv;if(e.sgv<54)vlN++;else if(e.sgv<70)loN++;else if(e.sgv<=180)taN++;else if(e.sgv<=250)hiN++;else vhN++});
+        const tot=en.length,avg=sum/tot,vals=en.map(e=>e.sgv);
+        const vari=vals.reduce((a,v)=>a+Math.pow(v-avg,2),0)/tot,sd=Math.sqrt(vari),cv=(sd/avg)*100,gmi=3.31+.02392*avg;
+        const ti=tr.reduce((a,tt)=>a+(tt.insulin||0),0),tc=tr.reduce((a,tt)=>a+(tt.carbs||0),0);
+        let se=(tot/(h*12))*100;if(se>100)se=100;
+        
+        let hypoEp=0,hyperEp=0,inHypo=false,inHyper=false;
+        en.slice().reverse().forEach(e=>{
+            if(e.sgv<70){if(!inHypo){hypoEp++;inHypo=true}}else{inHypo=false}
+            if(e.sgv>180){if(!inHyper){hyperEp++;inHyper=true}}else{inHyper=false}
+        });
+
+        const minSgv=Math.min(...vals),maxSgv=Math.max(...vals);
+        const days=h/24;
+        const avgIns=(ti/days).toFixed(1);
+        const avgCa=(tc/days).toFixed(0);
+
+        const fd=d=>new Date(d).toLocaleDateString('pl-PL',{day:'numeric',month:'short'});
+        document.getElementById('rdr').innerText=fd(en[0].date)+' - '+fd(en[en.length-1].date);
+        document.getElementById('rs').innerText=se.toFixed(0)+'%';document.getElementById('ra').innerText=Math.round(avg);
+        document.getElementById('rg').innerText=gmi.toFixed(1)+'%';document.getElementById('rsd').innerText=sd.toFixed(1);
+        const cve=document.getElementById('rcv');cve.innerText=cv.toFixed(1)+'%';cve.style.color=cv>36?t.red:t.t2;
+        document.getElementById('rmm').innerText=minSgv+' / '+maxSgv;
+        document.getElementById('ri').innerText=ti>0?avgIns+'J':'--';document.getElementById('rca').innerText=tc>0?avgCa+'g':'--';
+        document.getElementById('rhp').innerText=hypoEp;document.getElementById('rhh').innerText=hyperEp;
+        const pt=(taN/tot*100),pl=(loN/tot*100),pvl=(vlN/tot*100),ph=(hiN/tot*100),pvh=(vhN/tot*100);
+        document.getElementById('tg').innerText=pt.toFixed(0);document.getElementById('lo').innerText=pl.toFixed(0);
+        document.getElementById('vl').innerText=pvl.toFixed(0);document.getElementById('hi').innerText=ph.toFixed(0);document.getElementById('vh').innerText=pvh.toFixed(0);
+        let bh='';
+        if(pvh>0)bh+='<div class="ts" style="width:'+pvh+'%;background:#E65100">'+(pvh>4?Math.round(pvh)+'%':'')+'</div>';
+        if(ph>0)bh+='<div class="ts" style="width:'+ph+'%;background:'+t.org+'">'+(ph>4?Math.round(ph)+'%':'')+'</div>';
+        if(pt>0)bh+='<div class="ts" style="width:'+pt+'%;background:'+t.grn+'">'+(pt>4?Math.round(pt)+'%':'')+'</div>';
+        if(pl>0)bh+='<div class="ts" style="width:'+pl+'%;background:'+t.red+'">'+(pl>4?Math.round(pl)+'%':'')+'</div>';
+        if(pvl>0)bh+='<div class="ts" style="width:'+pvl+'%;background:#B71C1C">'+(pvl>4?Math.round(pvl)+'%':'')+'</div>';
+        document.getElementById('rtb').innerHTML=bh;
+
+        const perc=(arr,p)=>{if(arr.length===0)return null;const s=arr.slice().sort((a,b)=>a-b);const pos=(s.length-1)*p;const base=Math.floor(pos);const rest=pos-base;if(s[base+1]!==undefined)return s[base]+rest*(s[base+1]-s[base]);return s[base]};
+        const hoursData=Array.from({length:48},()=>[]);
+        en.forEach(e=>{const dt=new Date(e.date);const idx=dt.getHours()*2+Math.floor(dt.getMinutes()/30);hoursData[idx].push(e.sgv)});
+        const labels=[],d10=[],d25=[],d50=[],d75=[],d90=[];
+        for(let i=0;i<=48;i++){
+            const idx=i%48;const hStr=Math.floor(i/2)+':'+(i%2===0?'00':'30');
+            labels.push(i===48?'24:00':hStr);
+            const bin=hoursData[idx];
+            d10.push(perc(bin,0.0));d25.push(perc(bin,0.25));d50.push(perc(bin,0.50));d75.push(perc(bin,0.75));d90.push(perc(bin,1.0));
+        }
+        const ctx=document.getElementById('rch').getContext('2d');if(rch)rch.destroy();
+        rch=new Chart(ctx,{
+            type:'line',
+            data:{
+                labels:labels,
+                datasets:[
+                    {label:'Max',data:d90,borderColor:'transparent',backgroundColor:'transparent',pointRadius:0,tension:0.3,fill:false},
+                    {label:'Min-Max',data:d10,borderColor:'transparent',backgroundColor:'rgba('+hexRGB(t.acc)+',0.1)',pointRadius:0,tension:0.3,fill:'-1'},
+                    {label:'75%',data:d75,borderColor:'transparent',backgroundColor:'transparent',pointRadius:0,tension:0.3,fill:false},
+                    {label:'25-75%',data:d25,borderColor:'transparent',backgroundColor:'rgba('+hexRGB(t.acc)+',0.25)',pointRadius:0,tension:0.3,fill:'-1'},
+                    {label:'Mediana',data:d50,borderColor:t.acc,borderWidth:2.5,pointRadius:0,tension:0.3,fill:false}
+                ]
+            },
+            options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:200},
+                plugins:{legend:{display:false},datalabels:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1,mode:'index',intersect:false,callbacks:{label:ctx=>ctx.dataset.label+': '+Math.round(ctx.raw)}}},
+                scales:{
+                    x:{grid:{display:false},ticks:{font:{size:8},color:chartTick(),maxTicksLimit:8}},
+                    y:{min:40,max:300,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick(),stepSize:50}}
+                }
+            }
+        });
+
+        const hrTreat=Array.from({length:24},()=>({i:0,c:0}));
+        tr.forEach(tt=>{const hr=new Date(tt.timestamp).getHours();hrTreat[hr].i+=tt.insulin||0;hrTreat[hr].c+=tt.carbs||0;});
+        const hrIns=hrTreat.map(h=>Number((h.i/days).toFixed(1)));
+        const hrCarb=hrTreat.map(h=>Number((h.c/days).toFixed(0)));
+        if(window.tch)window.tch.destroy();
+        window.tch=new Chart(document.getElementById('treatChart').getContext('2d'),{
+            type:'bar',
+            data:{
+                labels:Array.from({length:24},(_,i)=>i+':00'),
+                datasets:[
+                    {label:'Insulina (J)',data:hrIns,backgroundColor:'rgba('+hexRGB(t.acc)+',0.6)',borderRadius:2,yAxisID:'y'},
+                    {label:'Węglowodany (g)',data:hrCarb,backgroundColor:'rgba('+hexRGB(t.org)+',0.5)',borderRadius:2,yAxisID:'y2'}
+                ]
+            },
+            options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:200},
+                plugins:{legend:{display:false},datalabels:{display:false}},
+                scales:{
+                    x:{grid:{display:false},ticks:{font:{size:7},color:t.t3}},
+                    y:{type:'linear',position:'left',grid:{color:chartGrid()},ticks:{font:{size:8},color:t.t3}},
+                    y2:{type:'linear',position:'right',grid:{display:false},ticks:{font:{size:8},color:t.org}}
+                }
+            }
+        });
+
+        const dowData=Array.from({length:7},()=>({s:0,c:0}));
+        const dowNames=['Nd','Pn','Wt','Śr','Cz','Pt','So'];
+        en.forEach(e=>{const dw=new Date(e.date).getDay();dowData[dw].s+=e.sgv;dowData[dw].c++});
+        const dowAvg=dowData.map(d2=>d2.c>0?Math.round(d2.s/d2.c):0);
+        if(window.dwch)window.dwch.destroy();
+        window.dwch=new Chart(document.getElementById('dowChart').getContext('2d'),{
+            type:'line',
+            data:{labels:dowNames,datasets:[{data:dowAvg,borderColor:t.acc,borderWidth:2,pointBackgroundColor:t.c1,pointBorderColor:t.acc,pointBorderWidth:2,pointRadius:4,tension:0.3,fill:false}]},
+            options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:200},
+                plugins:{legend:{display:false},datalabels:{display:true,align:'top',color:t.t2,font:{size:9},formatter:v=>v||''}},
+                scales:{x:{grid:{display:false},ticks:{font:{size:10},color:t.t3}},y:{min:40,max:250,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}
+            }
+        });
+
+        const bins=Array.from({length:13},()=>0);
+        en.forEach(e=>{const b=Math.min(12,Math.max(0,Math.floor((e.sgv-40)/20)));bins[b]++});
+        const binLabels=Array.from({length:13},(_,i)=>(40+i*20));
+        if(window.dch)window.dch.destroy();
+        window.dch=new Chart(document.getElementById('distChart').getContext('2d'),{
+            type:'bar',
+            data:{labels:binLabels,datasets:[{data:bins,backgroundColor:'rgba('+hexRGB(t.acc)+',0.15)',borderRadius:2}]},
+            options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:200},
+                plugins:{legend:{display:false},datalabels:{display:false}},
+                scales:{x:{grid:{display:false},ticks:{font:{size:7},color:t.t3}},y:{grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}
+            }
+        });
+
+
+
+        const hourData=Array.from({length:24},()=>({s:0,c:0,vals:[]}));
+        en.forEach(e=>{const hr=new Date(e.date).getHours();hourData[hr].s+=e.sgv;hourData[hr].c++;hourData[hr].vals.push(e.sgv)});
+        const pz=document.getElementById('pzones');let pzHTML='';
+        const highHrs=[],lowHrs=[];
+        hourData.forEach((h2,i)=>{if(h2.c<3)return;const a=h2.s/h2.c;const hiPct=h2.vals.filter(v=>v>180).length/h2.c*100;const loPct=h2.vals.filter(v=>v<70).length/h2.c*100;if(hiPct>40)highHrs.push({hr:i,avg:Math.round(a),pct:Math.round(hiPct)});if(loPct>25)lowHrs.push({hr:i,avg:Math.round(a),pct:Math.round(loPct)})});
+        if(highHrs.length===0&&lowHrs.length===0)pzHTML='<div class="c cp" style="text-align:center;color:var(--t4);font-size:11px">Brak powtarzajacych sie problemow w tym okresie</div>';
+        else{
+            highHrs.sort((a,b)=>b.pct-a.pct).slice(0,4).forEach(z=>{pzHTML+='<div class="c pz-card"><div class="pz-time" style="color:'+t.org+'">'+z.hr+':00 - '+(z.hr+1)+':00</div><div class="pz-desc">Wysoki w '+z.pct+'% pomiarow / Sr: '+z.avg+'</div><div class="pz-bar" style="background:linear-gradient(90deg,'+t.org+' '+z.pct+'%,var(--c2) '+z.pct+'%)"></div></div>'});
+            lowHrs.sort((a,b)=>b.pct-a.pct).slice(0,3).forEach(z=>{pzHTML+='<div class="c pz-card"><div class="pz-time" style="color:'+t.red+'">'+z.hr+':00 - '+(z.hr+1)+':00</div><div class="pz-desc">Niski w '+z.pct+'% pomiarow / Sr: '+z.avg+'</div><div class="pz-bar" style="background:linear-gradient(90deg,'+t.red+' '+z.pct+'%,var(--c2) '+z.pct+'%)"></div></div>'});
+        }
+        if(pz) pz.innerHTML=pzHTML;
+
+        setTimeout(()=>{ld.classList.add('gone');co.style.opacity='1'},100);
+    }catch(e){console.error(e);document.getElementById('raw-log').innerHTML='<div style="padding:20px;text-align:center;color:var(--red)">Blad ladowania.</div>'}
+}
+
+// === ADD TREATMENT ===
+function openAdd(){
+    document.getElementById('addIns').value='';
+    document.getElementById('addCarbs').value='';
+    const m=document.getElementById('addModal');
+    m.style.display='flex';
+    setTimeout(()=>m.classList.add('on'),10);
+}
+function closeAdd(){
+    const m=document.getElementById('addModal');
+    m.classList.remove('on');
+    setTimeout(()=>m.style.display='none',300);
+}
+async function saveAdd(){
+    const i=document.getElementById('addIns').value;
+    const c=document.getElementById('addCarbs').value;
+    if(!i && !c) return closeAdd();
+    const btn=document.querySelector('.ambtn:last-child');
+    const oldText=btn.innerText;
+    btn.innerText='Zapisuję...';
+    try{
+        const r=await fetch('/dane/api/treatments',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({insulin:i, carbs:c})
+        });
+        if(r.ok){
+            closeAdd();
+            li(); // refresh live chart
+        }else{
+            alert('Wystąpił błąd podczas zapisu.');
+        }
+    }catch(e){console.error(e);alert('Błąd połączenia.')}
+    finally { btn.innerText=oldText; }
+}
+
+// === RAW ===
+let rawT='sgv';
+function rawM(m,b){rawT=m;document.querySelectorAll('#s3 .sb').forEach(s=>s.classList.remove('on'));b.classList.add('on');loadRaw();}
+async function loadRaw(){
+    try{
+        const t=T();
+        const res=await fetch('/dane/api/data?hours='+agpH+'&t='+Date.now()).then(r=>r.json());
+        const wrap=document.getElementById('raw-log');
+        let html='';
+        if(rawT==='sgv'){
+            const e=(res.entries||[]).slice().reverse().slice(0,500);
+            document.getElementById('raw-count').innerText=e.length+' odczytow ('+agpH+'h)';
+            html=e.map((x,i,a)=>{
+                const dt=new Date(x.date);
+                const tm=dt.toLocaleDateString('pl-PL',{weekday:'short',day:'numeric',month:'short'})+' '+dt.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+                const nx=a[i+1];
+                let diff=0,dstr='Stabilnie',arr='&rarr;';
+                if(nx){
+                    diff=x.sgv-nx.sgv; 
+                    dstr=diff>0?'+'+diff:diff;
+                    if(diff>5)arr='&uarr;&uarr;';else if(diff>3)arr='&uarr;';else if(diff>1)arr='&nearr;';
+                    else if(diff<-5)arr='&darr;&darr;';else if(diff<-3)arr='&darr;';else if(diff<-1)arr='&searr;';
+                }
+                let st='Norma';if(x.sgv>180)st='Wysoki';if(x.sgv>250)st='B.Wysoki';if(x.sgv<70)st='Niski';if(x.sgv<54)st='B.Niski';
+                return '<div class="rl-r"><div class="rl-t"><div>'+tm+'</div><div style="font-size:9px;color:var(--t4);margin-top:2px;font-weight:600">'+st+'</div></div><div class="rl-v" style="color:'+dc(x.sgv)+'">'+x.sgv+' <span style="font-size:10px;color:var(--t3);font-weight:600">mg/dL</span></div><div class="rl-d"><div style="font-size:14px;color:'+dc(x.sgv)+'">'+arr+'</div><div style="font-size:9px;color:var(--t4)">'+dstr+'</div></div></div>';
+            }).join('');
+        }else{
+            const tr=(res.treatments||[]).reverse().slice(0,300);
+            document.getElementById('raw-count').innerText=tr.length+' wpisow ('+agpH+'h)';
+            html=tr.map(x=>{
+                const dt=new Date(x.timestamp);
+                const tm=dt.toLocaleDateString('pl-PL',{weekday:'short',day:'numeric',month:'short'})+' '+dt.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+                let det='';
+                if(x.insulin) det+='<div class="rl-v" style="color:'+t.acc+'">'+x.insulin.toFixed(1)+' <span style="font-size:10px;color:var(--t3);font-weight:600">J</span></div>';
+                if(x.carbs) det+='<div class="rl-v" style="color:'+t.org+'">'+x.carbs+' <span style="font-size:10px;color:var(--t3);font-weight:600">g</span></div>';
+                return '<div class="rl-r"><div class="rl-t"><div>'+tm+'</div><div style="font-size:9px;color:var(--t4);margin-top:2px;font-weight:600">'+(x.eventType||'Wpis manualny')+'</div></div><div style="display:flex;gap:12px;align-items:center">'+(det||'<span style="color:var(--t4);font-size:10px">Inne</span>')+'</div></div>';
+            }).join('');
+        }
+        wrap.innerHTML=html;
+    }catch(e){console.error(e)}
+}
+// === 3D VISUALIZATIONS ===
+let mtnCh=null, radarCh=null;
+function sgvToColor(v,alpha){
+    const t=T();
+    if(v<54)return 'rgba('+hexRGB('#B71C1C')+','+alpha+')';
+    if(v<70)return 'rgba('+hexRGB(t.red)+','+alpha+')';
+    if(v<=180)return 'rgba('+hexRGB(t.grn)+','+alpha+')';
+    if(v<=250)return 'rgba('+hexRGB(t.ylw)+','+alpha+')';
+    return 'rgba('+hexRGB(t.org)+','+alpha+')';
+}
+
+async function load3D(h,lb,btn){
+    if(btn){document.querySelectorAll('#s4 .rb').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+    try{
+        const t=T();
+        const res=await fetch('/dane/api/data?hours='+h+'&t='+Date.now()).then(r=>r.json());
+        if(!res.entries||!res.entries.length)return;
+        const en=res.entries;
+
+        // Group by day
+        const days={};
+        en.forEach(e=>{
+            const d=new Date(e.date);
+            const key=d.toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit'});
+            if(!days[key])days[key]=[];
+            days[key].push({h:d.getHours()+d.getMinutes()/60,sgv:e.sgv});
+        });
+        const dayKeys=Object.keys(days);
+
+        // === HEATMAP GRID ===
+        const grid=document.getElementById('heatGrid');
+        let html='';
+        dayKeys.forEach((dk,di)=>{
+            html+='<div style="display:flex;gap:1px;margin-bottom:1px;align-items:center">';
+            html+='<div style="width:40px;font-size:8px;color:var(--t4);font-weight:700;flex-shrink:0;text-align:right;padding-right:4px">'+dk+'</div>';
+            // Create 48 half-hour slots
+            for(let slot=0;slot<48;slot++){
+                const slotH=slot*0.5;
+                const pts=days[dk].filter(p=>p.h>=slotH&&p.h<slotH+0.5);
+                const avg=pts.length?Math.round(pts.reduce((a,p)=>a+p.sgv,0)/pts.length):0;
+                const bg=avg?sgvToColor(avg,0.7):'var(--c3)';
+                html+='<div style="flex:1;height:16px;background:'+bg+';border-radius:2px" title="'+dk+' '+Math.floor(slotH)+':'+(slotH%1?'30':'00')+' = '+avg+'"></div>';
+            }
+            html+='</div>';
+        });
+        grid.innerHTML=html;
+
+        // === MOUNTAIN CHART (layered days) ===
+        const colors=['#0A84FF','#5E5CE6','#FF9F0A','#30D158','#FF453A','#FFD60A','#BF5AF2','#64D2FF'];
+        const datasets=dayKeys.slice(-7).map((dk,i)=>{
+            const sorted=days[dk].sort((a,b)=>a.h-b.h);
+            return{
+                label:dk,
+                data:sorted.map(p=>({x:p.h,y:p.sgv})),
+                borderColor:colors[i%colors.length],
+                backgroundColor:'rgba('+hexRGB(colors[i%colors.length])+',0.06)',
+                borderWidth:1.5,
+                pointRadius:0,
+                tension:0.4,
+                fill:true,
+                datalabels:{display:false}
+            };
+        });
+        if(mtnCh)mtnCh.destroy();
+        mtnCh=new Chart(document.getElementById('mountainChart').getContext('2d'),{
+            type:'line',
+            data:{datasets},
+            options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:600},
+                plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:8,padding:8,font:{size:9,weight:'700'},color:t.t3}},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},
+                scales:{
+                    x:{type:'linear',min:0,max:24,ticks:{callback:v=>v+':00',font:{size:8},color:chartTick(),stepSize:3},grid:{display:false}},
+                    y:{min:40,max:300,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick(),stepSize:50}}
+                }
+            }
+        });
+
+        // === RADAR CHART (hourly averages) ===
+        const hrAvg=Array.from({length:24},(_,i)=>{
+            const pts=en.filter(e=>{const d=new Date(e.date);return d.getHours()===i});
+            return pts.length?Math.round(pts.reduce((a,p)=>a+p.sgv,0)/pts.length):0;
+        });
+        if(radarCh)radarCh.destroy();
+        radarCh=new Chart(document.getElementById('radarChart').getContext('2d'),{
+            type:'radar',
+            data:{
+                labels:Array.from({length:24},(_,i)=>i+':00'),
+                datasets:[{
+                    label:'Średnia Glikemia',
+                    data:hrAvg,
+                    borderColor:t.acc2,
+                    backgroundColor:'rgba('+hexRGB(t.acc)+',0.08)',
+                    borderWidth:2,
+                    pointRadius:3,
+                    pointBackgroundColor:hrAvg.map(v=>sgvToColor(v,1)),
+                    pointBorderColor:'transparent',
+                    datalabels:{display:false}
+                },{
+                    label:'Cel (70-180)',
+                    data:Array(24).fill(180),
+                    borderColor:'rgba('+hexRGB(t.grn)+',0.2)',
+                    backgroundColor:'rgba('+hexRGB(t.grn)+',0.03)',
+                    borderWidth:1,
+                    borderDash:[3,3],
+                    pointRadius:0,
+                    datalabels:{display:false}
+                }]
+            },
+            options:{
+                responsive:true,maintainAspectRatio:false,animation:{duration:600},
+                plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:8,padding:8,font:{size:9,weight:'700'},color:t.t3}},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},
+                scales:{
+                    r:{min:40,max:300,ticks:{display:false,stepSize:50},grid:{color:'rgba('+hexRGB(t.t4)+',0.15)'},pointLabels:{font:{size:8,weight:'600'},color:t.t4},angleLines:{color:'rgba('+hexRGB(t.t4)+',0.1)'}}
+                }
+            }
+        });
+
+        // === AGP HEATMAP (canvas) ===
+        const hc=document.getElementById('heatmapCanvas');
+        if(hc){
+            const hctx=hc.getContext('2d');
+            const dpr=window.devicePixelRatio||1;
+            const w=hc.clientWidth,ht=hc.clientHeight;
+            hc.width=w*dpr;hc.height=ht*dpr;
+            hctx.scale(dpr,dpr);
+            hctx.clearRect(0,0,w,ht);
+            const nDays=dayKeys.length,slotW=w/48,rowH=ht/nDays;
+            dayKeys.forEach((dk,di)=>{
+                for(let s=0;s<48;s++){
+                    const slotH=s*0.5;
+                    const pts=days[dk].filter(p=>p.h>=slotH&&p.h<slotH+0.5);
+                    const avg=pts.length?Math.round(pts.reduce((a,p)=>a+p.sgv,0)/pts.length):0;
+                    hctx.fillStyle=avg?sgvToColor(avg,0.75):(t.c3||'#222');
+                    hctx.fillRect(s*slotW,di*rowH,slotW-0.5,rowH-0.5);
+                }
+            });
+        }
+
+        // === 4. POLAR AREA ===
+        if(window._polarCh)window._polarCh.destroy();
+        window._polarCh=new Chart(document.getElementById('polarChart').getContext('2d'),{
+            type:'polarArea',
+            data:{
+                labels:Array.from({length:24},(_,i)=>i+':00'),
+                datasets:[{data:hrAvg,backgroundColor:hrAvg.map(v=>sgvToColor(v,0.6)),borderWidth:0,datalabels:{display:false}}]
+            },
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:800,animateRotate:true},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{r:{display:false}}}
+        });
+
+        // === 5. BUBBLE CHART ===
+        const bubbleData=en.slice(-200).map(e=>{const d=new Date(e.date);return{x:d.getHours()+d.getMinutes()/60,y:e.sgv,r:Math.min(Math.abs(e.sgv-125)/8,12)}});
+        if(window._bubbleCh)window._bubbleCh.destroy();
+        window._bubbleCh=new Chart(document.getElementById('bubbleChart').getContext('2d'),{
+            type:'bubble',data:{datasets:[{data:bubbleData,backgroundColor:bubbleData.map(b=>sgvToColor(b.y,0.5)),borderColor:bubbleData.map(b=>sgvToColor(b.y,0.8)),borderWidth:1,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:700},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1,callbacks:{label:c=>'SGV: '+c.raw.y+' o '+Math.floor(c.raw.x)+':'+(c.raw.x%1*60<10?'0':'')+Math.floor(c.raw.x%1*60)}}},scales:{x:{min:0,max:24,ticks:{callback:v=>v+':00',font:{size:8},color:chartTick()},grid:{display:false}},y:{min:40,max:300,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 6. DAY PART DONUT ===
+        const parts=[{n:'Noc (0-6)',f:e=>{const h=new Date(e.date).getHours();return h>=0&&h<6},c:'#5E5CE6'},{n:'Rano (6-12)',f:e=>{const h=new Date(e.date).getHours();return h>=6&&h<12},c:'#FFD60A'},{n:'Dzień (12-18)',f:e=>{const h=new Date(e.date).getHours();return h>=12&&h<18},c:'#FF9F0A'},{n:'Wieczór (18-24)',f:e=>{const h=new Date(e.date).getHours();return h>=18},c:'#0A84FF'}];
+        const partAvg=parts.map(p=>{const pts=en.filter(p.f);return pts.length?Math.round(pts.reduce((a,e)=>a+e.sgv,0)/pts.length):0});
+        if(window._dpCh)window._dpCh.destroy();
+        window._dpCh=new Chart(document.getElementById('dayPartDonut').getContext('2d'),{
+            type:'doughnut',data:{labels:parts.map(p=>p.n),datasets:[{data:partAvg,backgroundColor:parts.map(p=>p.c),borderWidth:0,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,cutout:'65%',animation:{duration:800,animateRotate:true},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}}}
+        });
+        document.getElementById('dayPartLegend').innerHTML=parts.map((p,i)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0"><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:'+p.c+'"></div><span>'+p.n+'</span></div><b style="color:var(--t1);font-size:13px">'+partAvg[i]+'</b></div>').join('');
+
+        // === 7. INSULIN vs SGV SCATTER ===
+        const tr=res.treatments||[];
+        const scatterData=tr.filter(tt=>tt.insulin>0).map(tt=>{const cl=en.reduce((p,e)=>Math.abs(e.date-tt.timestamp)<Math.abs(p.date-tt.timestamp)?e:p,en[0]);return{x:tt.insulin,y:cl.sgv}});
+        if(window._insCh)window._insCh.destroy();
+        window._insCh=new Chart(document.getElementById('insScatter').getContext('2d'),{
+            type:'scatter',data:{datasets:[{data:scatterData,backgroundColor:scatterData.map(p=>sgvToColor(p.y,0.6)),borderColor:scatterData.map(p=>sgvToColor(p.y,0.9)),pointRadius:5,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1,callbacks:{label:c=>'Ins: '+c.raw.x+'J → SGV: '+c.raw.y}}},scales:{x:{title:{display:true,text:'Insulina (J)',font:{size:9,weight:'700'},color:t.t4},grid:{display:false},ticks:{font:{size:8},color:chartTick()}},y:{min:40,max:300,title:{display:true,text:'SGV',font:{size:9,weight:'700'},color:t.t4},grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 8. HOUR BLOCKS ===
+        const hb=document.getElementById('hourBlocks');
+        hb.innerHTML=Array.from({length:24},(_, i)=>{
+            const pts=en.filter(e=>new Date(e.date).getHours()===i);
+            const avg=pts.length?Math.round(pts.reduce((a,e)=>a+e.sgv,0)/pts.length):0;
+            const bg=avg?sgvToColor(avg,0.7):'var(--c3)';
+            return '<div style="text-align:center;padding:8px 2px;border-radius:6px;background:'+bg+'"><div style="font-size:8px;font-weight:700;color:rgba(255,255,255,0.7)">'+i+':00</div><div style="font-size:14px;font-weight:900;color:#fff;margin-top:2px">'+avg+'</div></div>';
+        }).join('');
+
+        // === 9. DAILY AVERAGES ===
+        const dAvg=dayKeys.map(dk=>{const pts=days[dk];return{l:dk,v:Math.round(pts.reduce((a,p)=>a+p.sgv,0)/pts.length)}});
+        if(window._daCh)window._daCh.destroy();
+        window._daCh=new Chart(document.getElementById('dailyAvgChart').getContext('2d'),{
+            type:'bar',data:{labels:dAvg.map(d=>d.l),datasets:[{data:dAvg.map(d=>d.v),backgroundColor:dAvg.map(d=>sgvToColor(d.v,0.6)),borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:t.t4,font:{size:8,weight:'700'},formatter:v=>v}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{grid:{display:false},ticks:{font:{size:8},color:chartTick(),maxRotation:45}},y:{min:40,max:250,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 10. DELTA CHART ===
+        const deltas=[];for(let i=1;i<en.length;i++)deltas.push({x:en[i].date,y:en[i].sgv-en[i-1].sgv});
+        if(window._deltaCh)window._deltaCh.destroy();
+        window._deltaCh=new Chart(document.getElementById('deltaChart').getContext('2d'),{
+            type:'bar',data:{datasets:[{data:deltas.slice(-100),backgroundColor:deltas.slice(-100).map(d=>d.y>0?'rgba('+hexRGB(t.org)+',0.5)':'rgba('+hexRGB(t.acc)+',0.5)'),borderRadius:1,barThickness:2,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:500},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{type:'time',grid:{display:false},ticks:{font:{size:8},color:chartTick(),maxTicksLimit:6}},y:{grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 11. STACKED ZONE AREA ===
+        const zoneH=Array.from({length:24},(_,i)=>{const pts=en.filter(e=>new Date(e.date).getHours()===i);if(!pts.length)return{lo:0,tir:0,hi:0};const tot=pts.length;return{lo:Math.round(pts.filter(e=>e.sgv<70).length/tot*100),tir:Math.round(pts.filter(e=>e.sgv>=70&&e.sgv<=180).length/tot*100),hi:Math.round(pts.filter(e=>e.sgv>180).length/tot*100)}});
+        if(window._szCh)window._szCh.destroy();
+        window._szCh=new Chart(document.getElementById('stackedZone').getContext('2d'),{
+            type:'bar',data:{labels:Array.from({length:24},(_,i)=>i+':00'),datasets:[{label:'<70',data:zoneH.map(z=>z.lo),backgroundColor:'rgba('+hexRGB(t.red)+',0.6)',datalabels:{display:false}},{label:'70-180',data:zoneH.map(z=>z.tir),backgroundColor:'rgba('+hexRGB(t.grn)+',0.6)',datalabels:{display:false}},{label:'>180',data:zoneH.map(z=>z.hi),backgroundColor:'rgba('+hexRGB(t.ylw)+',0.6)',datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:8,padding:6,font:{size:9,weight:'700'},color:t.t3}},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:8},color:chartTick()}},y:{stacked:true,max:100,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick(),callback:v=>v+'%'}}}}
+        });
+
+        // === 12. HISTOGRAM ===
+        const bins=[0,54,70,100,140,180,250,350];const binLabels=['<54','54-70','70-100','100-140','140-180','180-250','>250'];
+        const binCounts=Array(7).fill(0);en.forEach(e=>{for(let i=0;i<bins.length-1;i++){if(e.sgv>=bins[i]&&e.sgv<bins[i+1]){binCounts[i]++;break;}}});
+        const binColors=['#B71C1C',t.red,t.grn,t.grn,t.grn,t.ylw,t.org];
+        if(window._histCh)window._histCh.destroy();
+        window._histCh=new Chart(document.getElementById('histChart').getContext('2d'),{
+            type:'bar',data:{labels:binLabels,datasets:[{data:binCounts,backgroundColor:binColors.map(c=>'rgba('+hexRGB(c)+',0.6)'),borderRadius:4,datalabels:{display:true,anchor:'end',align:'top',color:t.t4,font:{size:8,weight:'700'}}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:8},color:chartTick()}},y:{grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 13. MIN/MAX DAILY ===
+        const mmData=dayKeys.map(dk=>{const pts=days[dk];const vals=pts.map(p=>p.sgv);return{l:dk,min:Math.min(...vals),max:Math.max(...vals),avg:Math.round(vals.reduce((a,v)=>a+v,0)/vals.length)}});
+        if(window._mmCh)window._mmCh.destroy();
+        window._mmCh=new Chart(document.getElementById('minMaxChart').getContext('2d'),{
+            type:'bar',data:{labels:mmData.map(d=>d.l),datasets:[{label:'Min',data:mmData.map(d=>d.min),backgroundColor:'rgba('+hexRGB(t.red)+',0.4)',borderRadius:3,datalabels:{display:false}},{label:'Średnia',data:mmData.map(d=>d.avg),backgroundColor:'rgba('+hexRGB(t.grn)+',0.5)',borderRadius:3,datalabels:{display:false}},{label:'Max',data:mmData.map(d=>d.max),backgroundColor:'rgba('+hexRGB(t.ylw)+',0.4)',borderRadius:3,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:8,padding:6,font:{size:9,weight:'700'},color:t.t3}},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{grid:{display:false},ticks:{font:{size:8},color:chartTick(),maxRotation:45}},y:{min:40,max:350,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 14. 24H CLOCK ===
+        const clk=document.getElementById('clockCanvas');
+        if(clk){
+            const cctx=clk.getContext('2d'),dpr=window.devicePixelRatio||1;
+            const cw=clk.clientWidth,ch2=clk.clientHeight;
+            clk.width=cw*dpr;clk.height=ch2*dpr;cctx.scale(dpr,dpr);
+            const cx=cw/2,cy=ch2/2,R=Math.min(cx,cy)-20;
+            cctx.clearRect(0,0,cw,ch2);
+            // Draw segments
+            for(let i=0;i<24;i++){
+                const pts=en.filter(e=>new Date(e.date).getHours()===i);
+                const avg=pts.length?Math.round(pts.reduce((a,e)=>a+e.sgv,0)/pts.length):0;
+                const a1=(-Math.PI/2)+(i/24)*Math.PI*2,a2=a1+(Math.PI*2/24);
+                const ir=R*0.45;
+                cctx.beginPath();cctx.moveTo(cx+ir*Math.cos(a1),cy+ir*Math.sin(a1));
+                cctx.arc(cx,cy,R,a1,a2);cctx.lineTo(cx+ir*Math.cos(a2),cy+ir*Math.sin(a2));
+                cctx.arc(cx,cy,ir,a2,a1,true);cctx.closePath();
+                cctx.fillStyle=avg?sgvToColor(avg,0.65):(t.c3||'#222');cctx.fill();
+                cctx.strokeStyle=t.bg||'#000';cctx.lineWidth=1;cctx.stroke();
+            }
+            // Labels
+            for(let i=0;i<24;i++){
+                const a=(-Math.PI/2)+(i/24)*Math.PI*2+(Math.PI/24);
+                const lr=R+12;
+                cctx.fillStyle=t.t4;cctx.font='600 8px Inter,system-ui';cctx.textAlign='center';cctx.textBaseline='middle';
+                cctx.fillText(i+':00',cx+lr*Math.cos(a),cy+lr*Math.sin(a));
+            }
+            // Center
+            cctx.fillStyle=t.bg||'#000';cctx.beginPath();cctx.arc(cx,cy,R*0.4,0,Math.PI*2);cctx.fill();
+            cctx.fillStyle=t.t1;cctx.font='900 18px Inter,system-ui';cctx.textAlign='center';cctx.textBaseline='middle';
+            const totalAvg=en.length?Math.round(en.reduce((a,e)=>a+e.sgv,0)/en.length):0;
+            cctx.fillText(totalAvg,cx,cy-6);
+            cctx.fillStyle=t.t4;cctx.font='700 9px Inter,system-ui';cctx.fillText('mg/dL',cx,cy+10);
+        }
+
+        // === 15. WATERFALL ===
+        const wfData=[];let cum=0;const wfSrc=en.slice(-50);
+        for(let i=1;i<wfSrc.length;i++){const d=wfSrc[i].sgv-wfSrc[i-1].sgv;cum+=d;wfData.push({x:wfSrc[i].date,y:cum})}
+        if(window._wfCh)window._wfCh.destroy();
+        window._wfCh=new Chart(document.getElementById('waterfallChart').getContext('2d'),{
+            type:'bar',data:{datasets:[{data:wfData,backgroundColor:wfData.map(d=>d.y>=0?'rgba('+hexRGB(t.org)+',0.5)':'rgba('+hexRGB(t.acc)+',0.5)'),borderRadius:2,barThickness:4,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:500},plugins:{legend:{display:false},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{type:'time',grid:{display:false},ticks:{font:{size:8},color:chartTick(),maxTicksLimit:6}},y:{grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 16. TODAY vs YESTERDAY ===
+        const now=new Date(),todMid=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime(),yesMid=todMid-86400000;
+        const todPts=en.filter(e=>e.date>=todMid).map(e=>({x:new Date(e.date).getHours()+new Date(e.date).getMinutes()/60,y:e.sgv}));
+        const yesPts=en.filter(e=>e.date>=yesMid&&e.date<todMid).map(e=>({x:new Date(e.date).getHours()+new Date(e.date).getMinutes()/60,y:e.sgv}));
+        if(window._cmpCh)window._cmpCh.destroy();
+        window._cmpCh=new Chart(document.getElementById('compareChart').getContext('2d'),{
+            type:'line',data:{datasets:[{label:'Dzisiaj',data:todPts.sort((a,b)=>a.x-b.x),borderColor:t.acc2,borderWidth:2,pointRadius:0,tension:0.4,fill:false,datalabels:{display:false}},{label:'Wczoraj',data:yesPts.sort((a,b)=>a.x-b.x),borderColor:'rgba('+hexRGB(t.t3)+',0.4)',borderWidth:1.5,borderDash:[4,4],pointRadius:0,tension:0.4,fill:false,datalabels:{display:false}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:8,padding:8,font:{size:9,weight:'700'},color:t.t3}},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{type:'linear',min:0,max:24,ticks:{callback:v=>v+':00',font:{size:8},color:chartTick(),stepSize:3},grid:{display:false}},y:{min:40,max:300,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+        // === 17. STABILITY BY TIME OF DAY ===
+        const stParts=[{n:'🌙 Noc',r:[0,6]},{n:'🌅 Rano',r:[6,12]},{n:'☀️ Dzień',r:[12,18]},{n:'🌆 Wieczór',r:[18,24]}];
+        const sg=document.getElementById('stabilityGrid');
+        sg.innerHTML=stParts.map(p=>{
+            const pts=en.filter(e=>{const h=new Date(e.date).getHours();return h>=p.r[0]&&h<p.r[1]});
+            if(!pts.length)return '';
+            const avg=Math.round(pts.reduce((a,e)=>a+e.sgv,0)/pts.length);
+            const vals=pts.map(e=>e.sgv);
+            const sd=Math.round(Math.sqrt(vals.reduce((a,v)=>a+Math.pow(v-avg,2),0)/vals.length));
+            const tir=Math.round(pts.filter(e=>e.sgv>=70&&e.sgv<=180).length/pts.length*100);
+            const bg=sgvToColor(avg,0.15);
+            return '<div style="background:'+bg+';border-radius:10px;padding:12px;border:1px solid var(--sep)"><div style="font-size:11px;font-weight:800;margin-bottom:6px">'+p.n+'</div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:9px;color:var(--t3)">Średnia</span><span style="font-size:12px;font-weight:900;color:'+sgvToColor(avg,1).replace('rgba','rgb').replace(',1)',')') +'">'+avg+'</span></div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:9px;color:var(--t3)">SD</span><span style="font-size:11px;font-weight:800;color:var(--t2)">±'+sd+'</span></div><div style="display:flex;justify-content:space-between"><span style="font-size:9px;color:var(--t3)">TIR</span><span style="font-size:11px;font-weight:800;color:var(--grn)">'+tir+'%</span></div></div>';
+        }).join('');
+
+        // === 18. NIGHT vs DAY BAR ===
+        const nightPts=en.filter(e=>{const h=new Date(e.date).getHours();return h>=22||h<6});
+        const dayPts=en.filter(e=>{const h=new Date(e.date).getHours();return h>=6&&h<22});
+        const nAvg=nightPts.length?Math.round(nightPts.reduce((a,e)=>a+e.sgv,0)/nightPts.length):0;
+        const dAvg2=dayPts.length?Math.round(dayPts.reduce((a,e)=>a+e.sgv,0)/dayPts.length):0;
+        const nTir=nightPts.length?Math.round(nightPts.filter(e=>e.sgv>=70&&e.sgv<=180).length/nightPts.length*100):0;
+        const dTir=dayPts.length?Math.round(dayPts.filter(e=>e.sgv>=70&&e.sgv<=180).length/dayPts.length*100):0;
+        if(window._ndCh)window._ndCh.destroy();
+        window._ndCh=new Chart(document.getElementById('nightDayChart').getContext('2d'),{
+            type:'bar',data:{labels:['Noc (22-6)','Dzień (6-22)'],datasets:[{label:'Średnia',data:[nAvg,dAvg2],backgroundColor:['rgba('+hexRGB('#5E5CE6')+',0.6)','rgba('+hexRGB('#FFD60A')+',0.6)'],borderRadius:6,datalabels:{display:true,anchor:'end',align:'top',color:t.t1,font:{size:12,weight:'900'}}},{label:'TIR %',data:[nTir,dTir],backgroundColor:['rgba('+hexRGB('#5E5CE6')+',0.25)','rgba('+hexRGB('#FFD60A')+',0.25)'],borderRadius:6,datalabels:{display:true,anchor:'end',align:'top',color:t.grn,font:{size:10,weight:'800'},formatter:v=>v+'%'}}]},
+            options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:8,padding:6,font:{size:9,weight:'700'},color:t.t3}},tooltip:{backgroundColor:t.c1,titleColor:t.t4,bodyColor:t.t1,borderColor:t.sep,borderWidth:1}},scales:{x:{grid:{display:false},ticks:{font:{size:10,weight:'700'},color:chartTick()}},y:{min:0,grid:{color:chartGrid()},ticks:{font:{size:8},color:chartTick()}}}}
+        });
+
+    }catch(e){console.error(e)}
+}
+</script>
+
+    <script>
+/* === LIVE: NAKŁADKA „WCZORAJ” — POPRAWIONA WERSJA === */
+(function () {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    Chart.register({
+        id: 'liveYesterdayOverlay',
+
+        beforeUpdate(chart) {
+            // Tylko główny wykres LIVE
+            if (!chart.canvas || chart.canvas.id !== 'lc') return;
+
+            // Dane nie są jeszcze pobrane
+            if (!globEntries || !globEntries.length) return;
+
+            const x = chart.scales.x;
+            if (!x || x.min == null || x.max == null) return;
+
+            const t = T();
+
+            // Widoczny przedział czasu na wykresie
+            const startT = x.min;
+            const endT = x.max;
+
+            // Ten sam przedział, ale 24 h wcześniej
+            const yesterdayStartT = startT - DAY_MS;
+            const yesterdayEndT = endT - DAY_MS;
+
+            // Przesunięcie danych o +24h:
+            // wczoraj 12:00 zostanie pokazane jako dziś 12:00
+            const yesterdayData = globEntries
+                .filter(e =>
+                    e.date >= yesterdayStartT &&
+                    e.date <= yesterdayEndT
+                )
+                .map(e => ({
+                    x: e.date + DAY_MS,
+                    y: e.sgv
+                }));
+
+            // Usuń wcześniejszą serię, jeżeli wykres jest odświeżany
+            chart.data.datasets = chart.data.datasets.filter(
+                ds => ds.label !== 'Wczoraj'
+            );
+
+            // Dodaj linię „Wczoraj” pod aktualnym SGV
+            chart.data.datasets.unshift({
+                label: 'Wczoraj',
+                data: yesterdayData,
+                borderColor: 'rgba(' + hexRGB(t.t3) + ', 0.72)',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [6, 5],
+                pointRadius: 0,
+                pointHoverRadius: 3,
+                pointHoverBackgroundColor: t.t3,
+                pointHoverBorderColor: t.c1,
+                tension: 0.4,
+                fill: false,
+                datalabels: {
+                    display: false
+                },
+                order: 20
+            });
+
+            // Legenda tylko dla dwóch linii
+            chart.options.plugins.legend = {
+                display: true,
+                position: 'bottom',
+                labels: {
+                    color: t.t3,
+                    boxWidth: 12,
+                    boxHeight: 2,
+                    padding: 12,
+                    font: {
+                        size: 9,
+                        weight: '700'
+                    },
+                    filter: item =>
+                        item.text === 'SGV' ||
+                        item.text === 'Wczoraj'
+                }
+            };
+        }
+    });
+
+    // Ponowne pobranie danych i utworzenie wykresu,
+    // już z aktywną wtyczką „Wczoraj”.
+    li();
+})();
+</script>
+
+<script>
+/* === LIVE: KARTA „WCZORAJ” POD SGV — WERSJA Z WŁASNYM API === */
+(function () {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    const style = document.createElement('style');
+    style.textContent = `
+        .live-compare-row{
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            gap:0;
+            margin-top:10px;
+            color:var(--t3);
+        }
+        .live-compare-item{
+            min-width:92px;
+            padding:0 14px;
+            text-align:center;
+            border-right:1px solid var(--sep);
+        }
+        .live-compare-item:last-child{border-right:none}
+        .live-compare-label{
+            font-size:8px;
+            font-weight:800;
+            letter-spacing:1px;
+            color:var(--t4);
+            text-transform:uppercase;
+            margin-bottom:3px;
+        }
+        .live-compare-value{
+            font-size:15px;
+            font-weight:800;
+            color:var(--t3);
+            line-height:1.1;
+        }
+        .live-compare-sub{
+            font-size:8px;
+            color:var(--t4);
+            font-weight:600;
+            margin-top:2px;
+        }
+        .live-compare-diff-up{color:var(--org)}
+        .live-compare-diff-down{color:var(--acc2)}
+        .live-compare-diff-same{color:var(--t3)}
+    `;
+    document.head.appendChild(style);
+
+    function addCompareRow() {
+        if (document.getElementById('liveCompareRow')) return;
+
+        const hero = document.querySelector('#s1 .hero');
+        if (!hero) return;
+
+        const row = document.createElement('div');
+        row.id = 'liveCompareRow';
+        row.className = 'live-compare-row';
+
+        row.innerHTML = `
+            <div class="live-compare-item">
+                <div class="live-compare-label">Wczoraj</div>
+                <div class="live-compare-value" id="liveYesterdayValue">--</div>
+                <div class="live-compare-sub" id="liveYesterdayTime">o tej porze</div>
+            </div>
+
+            <div class="live-compare-item">
+                <div class="live-compare-label">Różnica</div>
+                <div class="live-compare-value" id="liveDifferenceValue">--</div>
+                <div class="live-compare-sub" id="liveDifferenceText">vs wczoraj</div>
+            </div>
+
+            <div class="live-compare-item">
+                <div class="live-compare-label">Śr. 7 dni</div>
+                <div class="live-compare-value" id="liveWeekAverageValue">--</div>
+                <div class="live-compare-sub" id="liveWeekAverageText">o tej porze</div>
+            </div>
+        `;
+
+        hero.appendChild(row);
+    }
+
+    function nearestEntry(entries, targetTimestamp) {
+        if (!entries.length) return null;
+
+        return entries.reduce((nearest, entry) => {
+            return Math.abs(entry.date - targetTimestamp) <
+                Math.abs(nearest.date - targetTimestamp)
+                ? entry
+                : nearest;
+        });
+    }
+
+    async function updateCompareRow() {
+        try {
+            addCompareRow();
+
+            // 9 dni: bieżący pomiar + 7 dni porównań.
+            const response = await fetch(
+                '/dane/api/data?hours=216&t=' + Date.now()
+            );
+            const data = await response.json();
+            const entries = data.entries || [];
+
+            if (!entries.length) return;
+
+            // API może zwracać odczyty w innej kolejności.
+            const current = entries.reduce((newest, entry) => {
+                return entry.date > newest.date ? entry : newest;
+            });
+
+            const yesterday = nearestEntry(
+                entries,
+                current.date - DAY_MS
+            );
+
+            const yesterdayEl = document.getElementById('liveYesterdayValue');
+            const yesterdayTimeEl = document.getElementById('liveYesterdayTime');
+            const differenceEl = document.getElementById('liveDifferenceValue');
+            const differenceTextEl = document.getElementById('liveDifferenceText');
+            const weekEl = document.getElementById('liveWeekAverageValue');
+            const weekTextEl = document.getElementById('liveWeekAverageText');
+
+            if (!yesterday) return;
+
+            const offsetMinutes = Math.round(
+                Math.abs(
+                    yesterday.date - (current.date - DAY_MS)
+                ) / 60000
+            );
+
+            yesterdayEl.textContent = yesterday.sgv;
+            yesterdayTimeEl.textContent =
+                offsetMinutes <= 5
+                    ? 'o tej porze'
+                    : 'różnica ' + offsetMinutes + ' min';
+
+            const difference = current.sgv - yesterday.sgv;
+
+            differenceEl.textContent =
+                (difference > 0 ? '+' : '') + difference;
+
+            differenceEl.className =
+                'live-compare-value ' +
+                (
+                    difference > 5
+                        ? 'live-compare-diff-up'
+                        : difference < -5
+                            ? 'live-compare-diff-down'
+                            : 'live-compare-diff-same'
+                );
+
+            differenceTextEl.textContent =
+                difference > 5
+                    ? 'wyżej niż wczoraj'
+                    : difference < -5
+                        ? 'niżej niż wczoraj'
+                        : 'podobnie';
+
+            const weekValues = [];
+
+            for (let day = 1; day <= 7; day++) {
+                const entry = nearestEntry(
+                    entries,
+                    current.date - (day * DAY_MS)
+                );
+
+                if (entry) {
+                    weekValues.push(entry.sgv);
+                }
+            }
+
+            if (weekValues.length) {
+                weekEl.textContent = Math.round(
+                    weekValues.reduce((sum, value) => sum + value, 0) /
+                    weekValues.length
+                );
+
+                weekTextEl.textContent =
+                    weekValues.length + ' dni danych';
+            }
+
+        } catch (error) {
+            console.error('Błąd karty porównania LIVE:', error);
+        }
+    }
+
+    // Odczekaj na zainicjowanie oryginalnego wykresu i danych.
+    setTimeout(updateCompareRow, 1000);
+
+    // Odświeżaj kartę razem z odczytami.
+    setInterval(updateCompareRow, 60000);
+})();
+</script>
+  
+    <script>
+/* === LIVE: GMI / SZACOWANE HbA1c === */
+(function () {
+    let selectedDays = 14;
+
+    const style = document.createElement('style');
+    style.textContent = `
+        .gmi-card{
+            width:min(310px, calc(100% - 32px));
+            margin:12px auto 0;
+            padding:11px 12px 10px;
+            border:1px solid var(--sep);
+            border-radius:13px;
+            background:var(--c2);
+            box-sizing:border-box;
+        }
+
+        .gmi-top{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:12px;
+        }
+
+        .gmi-title{
+            font-size:8px;
+            font-weight:800;
+            color:var(--t4);
+            letter-spacing:1px;
+        }
+
+        .gmi-value-row{
+            display:flex;
+            align-items:baseline;
+            justify-content:center;
+            gap:8px;
+            margin:7px 0 8px;
+        }
+
+        .gmi-value{
+            font-size:28px;
+            font-weight:900;
+            line-height:1;
+            letter-spacing:-1px;
+            color:var(--t2);
+        }
+
+        .gmi-desc{
+            font-size:9px;
+            color:var(--t4);
+            font-weight:700;
+        }
+
+        .gmi-tabs{
+            display:flex;
+            gap:4px;
+            padding:2px;
+            background:var(--c3);
+            border:1px solid var(--sep);
+            border-radius:7px;
+        }
+
+        .gmi-tab{
+            border:0;
+            border-radius:5px;
+            background:transparent;
+            color:var(--t4);
+            padding:4px 7px;
+            font-family:inherit;
+            font-size:8px;
+            font-weight:800;
+            cursor:pointer;
+        }
+
+        .gmi-tab.on{
+            background:var(--c1);
+            color:var(--t2);
+        }
+
+        .gmi-bottom{
+            display:flex;
+            justify-content:center;
+            gap:12px;
+            color:var(--t4);
+            font-size:8px;
+            font-weight:700;
+        }
+
+        .gmi-bottom b{
+            color:var(--t3);
+        }
+    `;
+    document.head.appendChild(style);
+
+    function addGmiCard() {
+        if (document.getElementById('gmiCard')) return;
+
+        const compareRow = document.getElementById('liveCompareRow');
+        const hero = document.querySelector('#s1 .hero');
+        if (!hero) return;
+
+        const card = document.createElement('div');
+        card.id = 'gmiCard';
+        card.className = 'gmi-card';
+
+        card.innerHTML = `
+            <div class="gmi-top">
+                <div class="gmi-title">GMI / SZACOWANE HbA1c</div>
+
+                <div class="gmi-tabs">
+                    <button class="gmi-tab on" data-days="14">14D</button>
+                    <button class="gmi-tab" data-days="30">30D</button>
+                    <button class="gmi-tab" data-days="90">90D</button>
+                </div>
+            </div>
+
+            <div class="gmi-value-row">
+                <div class="gmi-value" id="gmiLiveValue">--</div>
+                <div class="gmi-desc">szacunek z CGM</div>
+            </div>
+
+            <div class="gmi-bottom">
+                <span>Średnia: <b id="gmiLiveAverage">--</b> mg/dL</span>
+                <span>Dane: <b id="gmiLiveCoverage">--</b></span>
+            </div>
+        `;
+
+        if (compareRow) {
+            compareRow.insertAdjacentElement('afterend', card);
+        } else {
+            hero.appendChild(card);
+        }
+
+        card.querySelectorAll('.gmi-tab').forEach(button => {
+            button.addEventListener('click', () => {
+                selectedDays = Number(button.dataset.days);
+
+                card.querySelectorAll('.gmi-tab').forEach(tab => {
+                    tab.classList.toggle(
+                        'on',
+                        Number(tab.dataset.days) === selectedDays
+                    );
+                });
+
+                updateGmi();
+            });
+        });
+    }
+
+    async function updateGmi() {
+        try {
+            addGmiCard();
+
+            const hours = selectedDays * 24;
+            const response = await fetch(
+                '/dane/api/data?hours=' + hours + '&t=' + Date.now()
+            );
+            const data = await response.json();
+            const entries = (data.entries || [])
+                .filter(entry => Number.isFinite(Number(entry.sgv)));
+
+            if (!entries.length) return;
+
+            const values = entries.map(entry => Number(entry.sgv));
+            const average = values.reduce(
+                (sum, value) => sum + value,
+                0
+            ) / values.length;
+
+            // Oficjalny wzór GMI dla mg/dL:
+            // GMI = 3.31 + 0.02392 × średnia glukoza
+            const gmi = 3.31 + (0.02392 * average);
+
+            const oldest = entries.reduce(
+                (oldestEntry, entry) =>
+                    entry.date < oldestEntry.date ? entry : oldestEntry
+            );
+
+            const newest = entries.reduce(
+                (newestEntry, entry) =>
+                    entry.date > newestEntry.date ? entry : newestEntry
+            );
+
+            const actualDays = Math.min(
+                selectedDays,
+                Math.max(
+                    1,
+                    Math.round(
+                        (newest.date - oldest.date) /
+                        (24 * 60 * 60 * 1000)
+                    )
+                )
+            );
+
+            document.getElementById('gmiLiveValue').textContent =
+                gmi.toFixed(1).replace('.', ',') + '%';
+
+            document.getElementById('gmiLiveAverage').textContent =
+                Math.round(average);
+
+            document.getElementById('gmiLiveCoverage').textContent =
+                actualDays + ' / ' + selectedDays + ' dni';
+
+        } catch (error) {
+            console.error('Błąd obliczania GMI:', error);
+        }
+    }
+
+    setTimeout(updateGmi, 1200);
+    setInterval(updateGmi, 5 * 60 * 1000);
+})();
+</script>
+
+               
+</body>
+</html>
